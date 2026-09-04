@@ -1,0 +1,32 @@
+{
+  "name": "visitorbmc",
+  "version": "1.0.0",
+  "description": "Single Source of Truth untuk seluruh requirement, desain, dan arsitektur project",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "devDependencies": {
+    "eslint": "^9.19.0"
+  },
+  "overrides": {
+    "eslint": "^9.19.0"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspaces",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "build": "npm run build --workspaces",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "lint": "npm run lint --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces",
+    "start": "npm run start --workspace=backend",
+    "preview": "npm run preview --workspace=frontend"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
