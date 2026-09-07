@@ -5,7 +5,7 @@ export function ProtectedRoute() {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-sm text-gray-500">Memeriksa akses...</div>;
   }
 
   if (!isAuthenticated) {
@@ -19,7 +19,7 @@ export function AdminOnlyRoute() {
   const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-sm text-gray-500">Memeriksa akses...</div>;
   }
 
   if (!isAuthenticated) {

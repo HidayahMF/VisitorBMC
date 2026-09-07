@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createCompany } from '../api/companies.api';
 import { Layout } from '../components/Layout';
+import { DevFillButton } from '../components/DevFillButton';
 
 export function AddCompanyPage() {
   const navigate = useNavigate();
@@ -26,6 +27,7 @@ export function AddCompanyPage() {
     <Layout>
       <h1 className="text-xl font-bold mb-4">Add Company</h1>
       {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm mb-4">{error}</div>}
+      <div className="mb-4"><DevFillButton onClick={() => setName('PT BMC Development Test')} /></div>
       <form onSubmit={handleSubmit} className="max-w-sm">
         <label className="block text-sm font-medium mb-1">Company Name</label>
         <input

@@ -30,3 +30,15 @@ export interface CreateVisitorResponse {
   visitor: Visitor;
   potentialMatches?: PotentialMatch[];
 }
+
+export interface VisitorVisitHistoryEntry {
+  VisitId: number;
+  VisitCode: string;
+  CompanyName: string;
+  HostName: string;
+  Purpose: string;
+  VisitDate: string;
+  CheckInTime: string | null;
+  CheckOutTime: string | null;
+  Status: string;
+}

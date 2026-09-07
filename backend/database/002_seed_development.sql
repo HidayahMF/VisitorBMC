@@ -1,4 +1,16 @@
 -- ============================================================
+-- Ensure schema vms exists (idempotent) - all VisitorBMC tables
+-- live in the vms schema to avoid collisions with existing dbo
+-- ERP tables (dbo.users, VISIT_*, HRIS_*, etc.).
+-- ============================================================
+IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = N'vms')
+BEGIN
+    EXEC(N'CREATE SCHEMA vms');
+    PRINT 'Created schema vms.';
+END
+GO
+
+-- ============================================================
 -- VisitorBMC - Development Seed Data
 -- For local development only. Do NOT use in production.
 -- Passwords are stored as hashed values (bcrypt), not plain text.
@@ -7,13 +19,13 @@
 -- ------------------------------------------------------------
 -- Safety Induction seed (minimal required for development)
 -- ------------------------------------------------------------
-INSERT INTO SafetyInductions (Title, Version, ValidMonths, IsActive, ForceReinductionOnNewVersion)
+INSERT INTO vms.SafetyInductions (Title, Version, ValidMonths, IsActive, ForceReinductionOnNewVersion)
 VALUES ('Visitor Safety Induction', 1, 6, 1, 0);
 
 DECLARE @InductionId INT = SCOPE_IDENTITY();
 
 -- Sample content (replace with actual files later)
-INSERT INTO SafetyInductionContents (SafetyInductionId, ContentType, ContentUrl, Title, Description, SortOrder, IsRequired)
+INSERT INTO vms.SafetyInductionContents (SafetyInductionId, ContentType, ContentUrl, Title, Description, SortOrder, IsRequired)
 VALUES
     (@InductionId, 'VIDEO', '/uploads/safety-induction/intro.mp4', 'Welcome & Safety Overview', 'Introduction to site safety rules and emergency procedures.', 1, 1),
     (@InductionId, 'IMAGE', '/uploads/safety-induction/emergency-exit.png', 'Emergency Exits', 'Locations and procedures for emergency evacuation.', 2, 1),
@@ -26,20 +38,20 @@ VALUES
 -- ------------------------------------------------------------
 
 -- Notes:
--- 1. No Users are seeded with passwords in plain text.
+-- 1. No vms.Users are seeded with passwords in plain text.
 --    Authentication will be implemented in Phase 3.
 --    When it is, use a script like:
 --
---    INSERT INTO Users (Name, Username, PasswordHash, Role, IsActive)
+--    INSERT INTO vms.Users (Name, Username, PasswordHash, Role, IsActive)
 --    VALUES ('Administrator', 'admin', '<BCRYPT_HASH_HERE>', 'ADMIN', 1);
 --
 --    Generate hash with:
 --    node -e "const bcrypt = require('bcrypt'); bcrypt.hash('your_password', 10).then(h => console.log(h));"
 --
--- 2. No Companies are seeded.
+-- 2. No vms.Companies are seeded.
 --    These can be created dynamically through the application UI.
 --
--- 3. No Visitors are seeded.
---    Visitors are created per visit through the application UI.
+-- 3. No vms.Visitors are seeded.
+--    vms.Visitors are created per visit through the application UI.
 
 PRINT 'Seed data completed: Safety Induction V1 with 4 content items.';

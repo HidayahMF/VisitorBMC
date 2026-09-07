@@ -58,3 +58,7 @@ export async function updateCompanyStatus(id: number, isActive: boolean): Promis
   });
   return toCompany(result);
 }
+
+export async function deleteCompany(id: number): Promise<void> {
+  await apiClient<void>(`/companies/${id}`, { method: 'DELETE' });
+}

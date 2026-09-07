@@ -24,6 +24,7 @@ import {
   updateVisitor,
   updateVisitorStatus,
   searchVisitors,
+  getVisitorVisitHistory,
 } from '../services/visitors.service';
 
 beforeEach(() => {
@@ -65,6 +66,17 @@ describe('listVisitors', () => {
 
     const result = await listVisitors({ companyId: 1 });
     expect(result.data).toHaveLength(1);
+  });
+
+  it('qualifies visitor IsActive when the list joins companies', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ recordset: [{ total: 1 }] })
+      .mockResolvedValueOnce({ recordset: [validVisitorDetailRow] });
+
+    await listVisitors({ active: true, page: 1, limit: 20 });
+
+    expect(mockQuery.mock.calls[0][0]).toContain('v.IsActive = @active');
+    expect(mockQuery.mock.calls[1][0]).toContain('v.IsActive = @active');
   });
 });
 
@@ -218,5 +230,28 @@ describe('searchVisitors', () => {
   it('returns empty for empty query', async () => {
     const result = await searchVisitors('   ');
     expect(result).toHaveLength(0);
+  });
+});
+
+describe('getVisitorVisitHistory', () => {
+  it('returns visit history entries ordered newest first', async () => {
+    mockQuery.mockResolvedValueOnce({
+      recordset: [
+        { VisitId: 2, VisitCode: 'VIS-20260907-002', CompanyName: 'PT ABC', HostName: 'Budi', Purpose: 'Meeting', VisitDate: new Date('2026-09-07'), CheckInTime: new Date('2026-09-07T02:00:00Z'), CheckOutTime: new Date('2026-09-07T04:00:00Z'), Status: 'OUT' },
+      ],
+    });
+
+    const result = await getVisitorVisitHistory(1);
+    expect(result).toHaveLength(1);
+    expect(result[0].VisitCode).toBe('VIS-20260907-002');
+    expect(result[0].CompanyName).toBe('PT ABC');
+    expect(result[0].CheckInTime).toBeInstanceOf(Date);
+    expect(result[0].Status).toBe('OUT');
+  });
+
+  it('returns empty array when visitor has no visits', async () => {
+    mockQuery.mockResolvedValueOnce({ recordset: [] });
+    const result = await getVisitorVisitHistory(999);
+    expect(result).toEqual([]);
   });
 });

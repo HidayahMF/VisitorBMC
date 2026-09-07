@@ -26,11 +26,15 @@ vi.mock('../config/database', () => ({
   },
 }));
 
-vi.mock('./safety-clearance.service', () => ({
-  getActiveSafetyInductionConfig: vi.fn(() =>
-    Promise.resolve({ id: 1, title: 'Visitor Safety Induction', version: 1, validMonths: 6, forceReinductionOnNewVersion: false }),
-  ),
-}));
+vi.mock('./safety-clearance.service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./safety-clearance.service')>();
+  return {
+    ...actual,
+    getActiveSafetyInductionConfig: vi.fn(() =>
+      Promise.resolve({ id: 1, title: 'Visitor Safety Induction', version: 1, validMonths: 6, forceReinductionOnNewVersion: false }),
+    ),
+  };
+});
 
 import {
   getActiveInductionWithContents,
@@ -86,16 +90,64 @@ describe('completeInduction', () => {
     ).rejects.toThrow('Acknowledgement is required');
   });
 
-  it('returns recordId and validUntil on success', async () => {
+  it('returns recordId, completedAt, acknowledgedAt, and validUntil on success', async () => {
     mockQuery
       .mockResolvedValueOnce({ recordset: [{ Id: 1, VisitorName: 'Andi' }] })   // visitor check
       .mockResolvedValueOnce({ recordset: [{ Id: 1, Status: 'PENDING_INDUCTION' }] }) // visit check
       .mockResolvedValueOnce({ recordset: [{ Id: 1 }] })                          // visit visitor check
-      .mockResolvedValueOnce({ recordset: [{ Id: 10, ValidUntil: new Date('2027-03-07') }] }); // insert OUTPUT
+      .mockResolvedValueOnce({ recordset: [{ Id: 10, CompletedAt: new Date('2026-09-07'), ValidUntil: new Date('2027-03-07'), AcknowledgedAt: new Date('2026-09-07') }] }) // insert OUTPUT
+      .mockResolvedValueOnce({ recordset: [] })                                 // audit INSERT
+      .mockResolvedValueOnce({                                                  // visitors + induction records
+        recordset: [
+          { Id: 1, VisitorName: 'Andi', CompletedAt: new Date('2026-09-07'), ValidUntil: new Date('2027-03-07'), InductionVersion: 1 },
+        ],
+      })
+      .mockResolvedValueOnce({ rowsAffected: [1], recordset: [] });             // status UPDATE -> READY_FOR_CHECKIN
 
-    const result = await completeInduction({ visitorId: 1, visitId: 1, acknowledged: true }, 2);
+    const result = await completeInduction({ visitorId: 1, visitId: 1, acknowledged: true, ipAddress: '10.0.0.2' }, 2);
     expect(result.recordId).toBe(10);
+    expect(result.completedAt).toBeInstanceOf(Date);
+    expect(result.acknowledgedAt).toBeInstanceOf(Date);
     expect(result.validUntil).toBeInstanceOf(Date);
+
+    // Verify ValidUntil is computed from ValidMonths via DATEADD, not hard-coded
+    const insertCall = mockQuery.mock.calls[3][0] as string;
+    expect(insertCall).toContain('DATEADD(month, @validMonths,');
+    expect(insertCall).toContain('SYSUTCDATETIME()');
+    expect(insertCall).toContain('ValidUntil');
+
+    // Verify audit log written atomically
+    const auditCall = mockQuery.mock.calls[4][0] as string;
+    expect(auditCall).toContain('INSERT INTO vms.AuditLogs');
+
+    // Verify visit lifecycle advances to READY_FOR_CHECKIN when all cleared
+    const statusUpdateCall = mockQuery.mock.calls[6][0] as string;
+    expect(statusUpdateCall).toContain("Status = 'READY_FOR_CHECKIN'");
+  });
+
+  it('does not advance visit status when another visitor still requires induction', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ recordset: [{ Id: 1, VisitorName: 'Andi' }] })   // visitor check
+      .mockResolvedValueOnce({ recordset: [{ Id: 1, Status: 'PENDING_INDUCTION' }] }) // visit check
+      .mockResolvedValueOnce({ recordset: [{ Id: 1 }] })                          // visit visitor check
+      .mockResolvedValueOnce({ recordset: [{ Id: 10, CompletedAt: new Date('2026-09-07'), ValidUntil: new Date('2027-03-07'), AcknowledgedAt: new Date('2026-09-07') }] }) // insert OUTPUT
+      .mockResolvedValueOnce({ recordset: [] })                                 // audit INSERT
+      .mockResolvedValueOnce({                                                  // visitors: Andi valid, Reza never completed
+        recordset: [
+          { Id: 1, VisitorName: 'Andi', CompletedAt: new Date('2026-09-07'), ValidUntil: new Date('2027-03-07'), InductionVersion: 1 },
+          { Id: 2, VisitorName: 'Reza', CompletedAt: null, ValidUntil: null, InductionVersion: null },
+        ],
+      });
+
+    await completeInduction(
+      { visitorId: 1, visitId: 1, acknowledged: true, ipAddress: '10.0.0.2' },
+      2,
+    );
+
+    // No status UPDATE query should run (last query executed is the clearance query)
+    const lastCall = mockQuery.mock.calls[mockQuery.mock.calls.length - 1][0] as string;
+    expect(lastCall).toContain('SELECT vis.Id');
+    expect(lastCall).not.toContain('UPDATE vms.Visits');
   });
 
   it('throws 404 when visitor not found or inactive', async () => {

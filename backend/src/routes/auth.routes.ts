@@ -8,6 +8,7 @@ import {
   getUserById,
   toSafeUser,
 } from '../services/auth.service';
+import { tryLogAudit } from '../services/audit-log.service';
 import { type AuthenticatedRequest } from '../middleware/authenticate';
 
 export async function login(
@@ -22,23 +23,49 @@ export async function login(
     };
 
     if (!username || !password) {
-      next(new AppError('Username and password are required', 400));
+      next(new AppError('NIP dan tanggal lahir wajib diisi.', 400));
       return;
     }
 
     const user = await findUserForLogin(username);
 
     if (!user || !user.IsActive) {
-      res.status(401).json({ message: 'Invalid username or password' });
+      await tryLogAudit({
+        userId: null,
+        action: 'LOGIN_FAILED',
+        entityType: 'User',
+        details: JSON.stringify({ action: 'login_failed' }),
+        ipAddress: req.ip ?? null,
+      });
+      res.status(401).json({ message: 'NIP atau tanggal lahir tidak valid.' });
       return;
     }
 
-    const passwordValid = await comparePassword(password, user.PasswordHash);
+    const passwordValid = await comparePassword(
+      password,
+      user.PasswordHash || user.BirthDate,
+    );
 
     if (!passwordValid) {
-      res.status(401).json({ message: 'Invalid username or password' });
+      await tryLogAudit({
+        userId: null,
+        action: 'LOGIN_FAILED',
+        entityType: 'User',
+        details: JSON.stringify({ action: 'login_failed' }),
+        ipAddress: req.ip ?? null,
+      });
+      res.status(401).json({ message: 'NIP atau tanggal lahir tidak valid.' });
       return;
     }
+
+    await tryLogAudit({
+      userId: user.Id,
+      action: 'LOGIN_SUCCESS',
+      entityType: 'User',
+      entityId: user.Id,
+      details: JSON.stringify({ action: 'login_success' }),
+      ipAddress: req.ip ?? null,
+    });
 
     const token = generateToken({ userId: user.Id, role: user.Role });
 

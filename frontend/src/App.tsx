@@ -13,6 +13,7 @@ import { VisitDetailPage } from './pages/VisitDetailPage';
 import { NewVisitPage } from './pages/NewVisitPage';
 import { ActiveVisitsPage } from './pages/ActiveVisitsPage';
 import { SafetyInductionPage } from './pages/SafetyInductionPage';
+import { SafetyInductionManagementPage } from './pages/SafetyInductionManagementPage';
 import { ProtectedRoute, AdminOnlyRoute } from './components/ProtectedRoute';
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
           <Route path="/visits/new" element={<NewVisitPage />} />
           <Route path="/visits/active" element={<ActiveVisitsPage />} />
           <Route path="/visits/:id" element={<VisitDetailPage />} />
+          <Route path="/safety-inductions/manage" element={<SafetyInductionManagementPage />} />
           <Route element={<AdminOnlyRoute />}>
             <Route path="/companies/:id/edit" element={<EditCompanyPage />} />
             <Route path="/visitors/:id/edit" element={<EditVisitorPage />} />

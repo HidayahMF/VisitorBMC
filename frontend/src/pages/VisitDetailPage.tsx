@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getVisit, checkInVisit, checkOutVisit } from '../api/visits.api';
+import { deleteVisit, getVisit, checkInVisit, checkOutVisit } from '../api/visits.api';
 import { Layout } from '../components/Layout';
 import { type VisitDetail } from '../types/visit';
+import { useAuth } from '../context/AuthContext';
+import { DevDeleteButton } from '../components/DevFillButton';
 
 export function VisitDetailPage() {
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [visit, setVisit] = useState<VisitDetail | null>(null);
@@ -52,6 +55,16 @@ export function VisitDetailPage() {
     setActionLoading(false);
   }
 
+  async function handleDelete() {
+    if (!id || !visit || !confirm(`Hapus visit ${visit.VisitCode}?`)) return;
+    try {
+      await deleteVisit(Number(id));
+      navigate('/visits');
+    } catch {
+      alert('Failed to delete visit');
+    }
+  }
+
   function getStatusBadge(status: string) {
     switch (status) {
       case 'VALID':
@@ -81,14 +94,17 @@ export function VisitDetailPage() {
   return (
     <Layout>
       <div className="max-w-2xl">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold font-mono">{visit.VisitCode}</h1>
-          <button
-            onClick={() => navigate('/visits')}
-            className="text-sm px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
-          >
-            Back
-          </button>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-xl font-bold font-mono">{visit.VisitCode}</h1>
+            <div className="flex gap-2">
+              {user?.role === 'ADMIN' && <DevDeleteButton onClick={handleDelete} />}
+              <button
+                onClick={() => navigate('/visits')}
+                className="text-sm px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+              >
+                Back
+              </button>
+            </div>
         </div>
 
         <div className="bg-white border rounded p-6 mb-4">

@@ -70,6 +70,10 @@ export async function checkOutVisit(id: number): Promise<VisitDetail> {
   });
 }
 
+export async function deleteVisit(id: number): Promise<void> {
+  await apiClient<void>(`/visits/${id}`, { method: 'DELETE' });
+}
+
 export async function getActiveVisits(params?: {
   q?: string;
   companyId?: number;

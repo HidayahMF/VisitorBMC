@@ -11,9 +11,10 @@ export async function apiClient<T = unknown>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const isFormData = options.body instanceof FormData;
   const response = await fetch(`/api${path}`, {
     credentials: 'include',
-    headers: {
+    headers: isFormData ? options.headers : {
       'Content-Type': 'application/json',
       ...options.headers,
     },

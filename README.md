@@ -281,7 +281,8 @@ Safety Induction — Visitor 1 of 4
 
 - Visit tidak dianggap resmi `IN` jika masih ada visitor dengan status `REQUIRED`
 - Semua visitor harus memiliki induction `VALID` atau baru saja menyelesaikan induction
-- Status Visit berubah: `PENDING` → `IN` hanya setelah **semua visitor cleared**
+- Status Visit berubah dari `READY_FOR_CHECKIN` → `IN` hanya setelah **semua visitor cleared**
+- Backend mencatat `CheckInTime` (server) dan `CheckedInBy` (authenticated user) dalam satu transaction
 
 ### 6.5 Currently Inside
 
@@ -635,6 +636,8 @@ flowchart TD
 
 ## 12. Database Design
 
+> **Schema:** Semua tabel aplikasi VisitorBMC berada di schema `vms` (contoh: `vms.Users`, `vms.Visits`), karena database `BMC` adalah database ERP yang sudah berisi tabel `dbo` seperti `dbo.users`, `VISIT_*`, `HRIS_*`. Migration membuat schema `vms` secara idempotent. Satu-satunya tabel `dbo` yang di-read adalah `dbo.hris_Employee` untuk host lookup.
+
 ### 12.1 Tables Overview
 
 Berikut adalah tabel-tabel utama dalam database:
@@ -710,7 +713,7 @@ Menyimpan registrasi kunjungan.
 | `VisitDate` | `DATE` | NOT NULL | Tanggal kunjungan (server-generated) |
 | `CheckInTime` | `DATETIME2` | NULL | Waktu check-in (server-generated) |
 | `CheckOutTime` | `DATETIME2` | NULL | Waktu check-out (server-generated) |
-| `Status` | `VARCHAR(20)` | NOT NULL, DEFAULT 'PENDING_INDUCTION' | `PENDING_INDUCTION` / `IN` / `OUT` / `CANCELLED` |
+| `Status` | `VARCHAR(20)` | NOT NULL, DEFAULT 'PENDING_INDUCTION' | `PENDING_INDUCTION` / `READY_FOR_CHECKIN` / `IN` / `OUT` / `CANCELLED` |
 | `CreatedBy` | `INT` | FK → Users | Security yang membuat |
 | `CheckedOutBy` | `INT` | FK → Users, NULL | Security yang checkout |
 | `CreatedAt` | `DATETIME2` | NOT NULL, DEFAULT SYSUTCDATETIME() | Waktu pembuatan (UTC) |
@@ -1311,6 +1314,11 @@ SI_FORCE_REINDUCTION=false
 UPLOAD_MAX_SIZE_MB=100
 UPLOAD_ALLOWED_TYPES=mp4,jpg,jpeg,png,gif
 
+# HRIS Host Lookup
+HRIS_EMPLOYEE_TABLE=dbo.hris_Employee
+HRIS_EMPLOYEE_NAME_COL=Name
+HRIS_SEARCH_MIN_CHARS=2
+
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=5
@@ -1637,8 +1645,14 @@ POST /api/safety-inductions/complete  { visitorId, visitId, acknowledged: true }
   → fetches active SafetyInductions config (exactly 1 active required)
   → INSERT into VisitorInductionRecords
       (VisitorId, VisitId, SafetyInductionId, InductionVersion,
-       Acknowledged, AcknowledgedAt = SYSUTCDATETIME(), CreatedBy)
-  → ValidUntil computed by SQL Server from ValidMonths
+       CompletedAt = SYSUTCDATETIME(),
+       ValidUntil = DATEADD(month, @validMonths, SYSUTCDATETIME()),
+       AcknowledgedAt = SYSUTCDATETIME(), CreatedBy)
+  → ValidUntil is computed by SQL Server from SafetyInductions.ValidMonths
+    (database is the source of truth — never hard-coded)
+  → audit log SAFETY_INDUCTION_COMPLETED written atomically in the transaction
+  → if ALL visitors of the visit are now cleared, the visit status advances
+    PENDING_INDUCTION -> READY_FOR_CHECKIN (same clearance rule reused)
   → transaction + rollback on failure
 ```
 
@@ -1650,15 +1664,67 @@ Header: `Safety Induction — Visitor X of Y Required`. Progress: `X / Y Require
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| PUT | `/api/visits/:id/checkin` | Validate `READY_FOR_CHECKIN` → set `CheckInTime` → `IN` | SECURITY, ADMIN |
+| PUT | `/api/visits/:id/checkin` | Validate `READY_FOR_CHECKIN` → set `CheckInTime` + `CheckedInBy` → `IN` | SECURITY, ADMIN |
 | PUT | `/api/visits/:id/checkout` | Validate `IN` → set `CheckOutTime` + `CheckedOutBy` → `OUT` | SECURITY, ADMIN |
-| GET | `/api/visits/active` | List visits with status `IN` (search + filters) | SECURITY, ADMIN |
+| GET | `/api/visits/active` | List visits with status `IN` (search + company + date filters) | SECURITY, ADMIN |
 
-> **Catatan:** Tidak ada kolom `CheckedInBy` di schema — `CheckInTime` adalah server timestamp dan audit user check-in tidak disimpan (hanya `CheckedOutBy` untuk check-out). Jika diperlukan, tambah kolom `CheckedInBy` di tabel `Visits`.
+> **Catatan (migration 006):** `CheckedInBy` disimpan di tabel `Visits` (FK → Users, nullable). Nilainya selalu berasal dari *authenticated identity* (JWT), tidak pernah dari request body. Check-in dan check-out berjalan dalam satu transaction bersama audit log.
 
 Timestamps adalah **server only**:
 - `CheckInTime` = `SYSUTCDATETIME()` di statement UPDATE
 - `CheckOutTime` = `SYSUTCDATETIME()` di statement UPDATE
+
+### Audit Log (migration 007)
+
+Tabel `AuditLogs` mencatat critical actions. Seluruh query parameterized; tidak ada password/token/secrets yang disimpan.
+
+| Action | EntityType | Kapan ditulis | Atomic dengan bisnis? |
+|--------|-----------|---------------|----------------------|
+| `LOGIN_SUCCESS` | `User` | Login berhasil | No (best-effort) |
+| `LOGIN_FAILED` | `User` | Kredensial salah / user tidak aktif | No (best-effort) |
+| `VISIT_CREATED` | `Visit` | Visit dibuat | Yes (dalam transaction) |
+| `SAFETY_INDUCTION_COMPLETED` | `VisitorInductionRecord` | Induction selesai | Yes (dalam transaction) |
+| `VISIT_CHECKED_IN` | `Visit` | Check-in | Yes (dalam transaction) |
+| `VISIT_CHECKED_OUT` | `Visit` | Check-out | Yes (dalam transaction) |
+
+**Policy:** Audit yang gagal di dalam *business transaction* akan me-*rollback* transaction (fail-closed — audit trail dijamin lengkap). Audit login bersifat best-effort (`tryLogAudit`): kegagalan hanya dicatat di console server dan tidak membocorkan data atau memblokir login.
+
+### Visitor Visit History
+
+`GET /api/visitors/:id/history` — riwayat visit per visitor, urut terbaru dahulu (`VisitDate DESC, Id DESC`). Response flat array:
+
+```json
+[
+  {
+    "VisitId": 5,
+    "VisitCode": "VIS-20260907-001",
+    "CompanyName": "PT ABC",
+    "HostName": "Budi",
+    "Purpose": "Supplier Meeting",
+    "VisitDate": "2026-09-07",
+    "CheckInTime": "2026-09-07T02:00:00Z",
+    "CheckOutTime": "2026-09-07T04:00:00Z",
+    "Status": "OUT"
+  }
+]
+```
+
+`VisitorDetailPage` menampilkan: profil visitor, Visit History (dari endpoint di atas), dan Safety Induction History (dari `GET /api/safety-inductions/visitor/:visitorId/history`).
+
+### HRIS Host Lookup
+
+Field **Host / Person to Meet** di `/visits/new` adalah autocomplete yang membaca data dari tabel `dbo.hris_Employee` di SQL Server yang sama (10.19.25.27 / database BMC). Semua data aplikasi VisitorBMC berada di schema `vms`; hanya host lookup yang membaca tabel `dbo` (tidak pernah ditulis).
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/hris/employees?q=&limit=` | Search nama employee (LIKE parameterized), return `[{ "name": "..." }]` | SECURITY, ADMIN |
+
+**Aturan:**
+- Minimal `HRIS_SEARCH_MIN_CHARS` (default 2) karakter sebelum query dijalankan.
+- Hanya kolom nama yang diekspos — tidak ada kolom HRIS lain yang sensitif.
+- Nama tabel/kolom dikonfigurasi via environment (`HRIS_EMPLOYEE_TABLE`, `HRIS_EMPLOYEE_NAME_COL`) — identifier dari config (trusted), nilai pencarian tetap parameterized.
+- Saat user memilih employee, nilai tersimpan sebagai `Visits.HostName` (text) — tidak ada perubahan schema.
+- Jika tabel HRIS tidak tersedia, endpoint mengembalikan `[]` dan input host tetap bisa diisi manual (free text).
 
 ### Dashboard Stats
 
@@ -1695,19 +1761,25 @@ Timestamps adalah **server only**:
 | `002_seed_development.sql` | Safety Induction V1 + 4 content items | 2 |
 | `004_company_visitor_indexes.sql` | Dup-detection indexes | 4 |
 | `005_visit_registration.sql` | `READY_FOR_CHECKIN` status + `VisitDailyCounters` | 5 |
+| `006_visits_checkedin_by.sql` | `Visits.CheckedInBy` column (FK) + index | P1 hardening |
+| `007_audit_logs.sql` | `AuditLogs` table + indexes | P1 hardening |
 
-### Testing Summary (Phases 1-8)
+### Testing Summary (Phases 1-8 + P1 hardening)
 
 | Workspace | Test File | Tests |
 |-----------|-----------|-------|
 | Backend | `companies.service.test.ts` | 17 |
-| Backend | `visitors.service.test.ts` | 19 |
+| Backend | `visitors.service.test.ts` | 21 |
 | Backend | `visits.service.test.ts` | 9 |
-| Backend | `safety-inductions.service.test.ts` | 6 |
+| Backend | `safety-inductions.service.test.ts` | 7 |
+| Backend | `audit-log.service.test.ts` | 4 |
+| Backend | `hris.service.test.ts` | 3 |
+| Backend | `integration/workflow.integration.test.ts` | 3 |
 | Frontend | `visit-status.test.ts` | 1 |
 | Frontend | `SafetyInductionPage.test.tsx` | 5 |
 | Frontend | `VisitDetailPage.test.tsx` | 5 |
-| **Total** | | **62** |
+| Frontend | `VisitorDetailPage.test.tsx` | 4 |
+| **Total** | | **79** |
 
 Verification commands:
 ```bash
@@ -1826,7 +1898,7 @@ cd frontend && npx tsc --noEmit # typecheck
 
 ### 1. Create Database
 
-Buat database di SQL Server instance Anda:
+Buat database di SQL Server instance Anda (di server internal `10.19.25.27` database `BMC` **sudah merupakan database ERP existing** — JANGAN menjalankan `CREATE DATABASE` ulang; aplikasi memakai schema baru `vms` di dalamnya):
 
 ```sql
 CREATE DATABASE BMC;
@@ -1834,6 +1906,8 @@ GO
 USE BMC;
 GO
 ```
+
+> **Penting:** Semua migrasi di bawah membuat/menulis **hanya di schema `vms`** (tabel aplikasi VisitorBMC). Tabel ERP `dbo` (`dbo.users`, `VISIT_*`, `HRIS_*`, dll.) tidak pernah dimodifikasi. Satu-satunya akses `dbo` adalah read-only `dbo.hris_Employee` untuk host lookup.
 
 ### 2. Run Initial Schema
 
@@ -1995,7 +2069,7 @@ Refer ke `backend/database/001_initial_schema.sql` untuk implementasi penuh.
 | `Users` | CHECK | `CK_Users_Role` — Role must be `ADMIN` or `SECURITY` |
 | `Visitors` | UNIQUE | `UQ_Visitors_VisitorCode` |
 | `Visits` | UNIQUE | `UQ_Visits_VisitCode` |
-| `Visits` | CHECK | `CK_Visits_Status` — Status must be `PENDING_INDUCTION`, `IN`, `OUT`, `CANCELLED` |
+| `Visits` | CHECK | `CK_Visits_Status` — Status must be `PENDING_INDUCTION`, `READY_FOR_CHECKIN`, `IN`, `OUT`, `CANCELLED` (via migration `005_visit_registration.sql`) |
 | `VisitVisitors` | UNIQUE | `UQ_VisitVisitors_Visit_Visitor` — Prevents duplicate visitor in same visit |
 | `SafetyInductionContents` | CHECK | `CK_SICContents_ContentType` — ContentType must be `IMAGE` or `VIDEO` |
 | `SafetyInductions` | CHECK | `CK_SafetyInductions_Version` — Version > 0 |
@@ -2237,7 +2311,7 @@ Internal use only — PT BMC.
 
 ---
 
-> **Document Version:** 1.1
+> **Document Version:** 1.2
 > **Last Updated:** 07 September 2026
 > **Author:** AI Assistant (generated based on requirement document)
-> **Status:** IN DEVELOPMENT — Phases 1-8 complete, Phase 9 (Audit & Testing) in progress
+> **Status:** IN DEVELOPMENT — Phases 1-8 complete; P1 hardening (ValidUntil fix, CheckedInBy, AuditLogs, visitor history, date filter) done; Phase 9 (full audit) ongoing; Phase 10 (Docker/Portainer) NOT started

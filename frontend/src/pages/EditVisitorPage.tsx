@@ -5,6 +5,7 @@ import { searchCompanies } from '../api/companies.api';
 import { Layout } from '../components/Layout';
 import { type Company } from '../types/company';
 import { type Visitor } from '../types/visitor';
+import { DevFillButton } from '../components/DevFillButton';
 
 export function EditVisitorPage() {
   const { id } = useParams<{ id: string }>();
@@ -72,6 +73,11 @@ export function EditVisitorPage() {
     setSaving(false);
   }
 
+  function fillExample() {
+    setName('Visitor Development Updated');
+    setPhone('081234567890');
+  }
+
   if (loading) return <Layout><p className="text-sm text-gray-500">Loading...</p></Layout>;
   if (!visitor) return null;
 
@@ -79,6 +85,7 @@ export function EditVisitorPage() {
     <Layout>
       <h1 className="text-xl font-bold mb-4">Edit Visitor</h1>
       {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm mb-4">{error}</div>}
+      <div className="mb-4"><DevFillButton onClick={fillExample} /></div>
       <form onSubmit={handleSubmit} className="max-w-sm">
         <div className="mb-3">
           <label className="block text-xs text-gray-400 mb-1">Visitor Code</label>

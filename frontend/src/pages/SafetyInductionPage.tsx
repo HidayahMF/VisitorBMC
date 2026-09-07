@@ -2,6 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getActiveInductionContents, completeInduction } from '../api/safety-inductions.api';
 import { type InductionContent, type InductionConfig } from '../types/induction';
+import { Icon } from '../components/Icon';
+import { DevFillButton } from '../components/DevFillButton';
+import k3Video from '../assets/VIDEO K3 BMC VERSi TAMU  FINAL durasi 3.55.mov';
+import safetyRidingImage from '../assets/IMBAUAN BMC SAFETY RIDING.png';
+
+function resolveContentUrl(content: InductionContent): string {
+  if (content.ContentUrl === 'asset://bmc-k3-video') return k3Video;
+  if (content.ContentUrl === 'asset://bmc-safety-riding') return safetyRidingImage;
+  return content.ContentUrl;
+}
 
 export function SafetyInductionPage() {
   const { visitId } = useParams<{ visitId: string }>();
@@ -91,7 +101,7 @@ export function SafetyInductionPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white border rounded p-8 max-w-md text-center">
-          <div className="text-4xl mb-4">&#10003;</div>
+           <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-green-100 text-green-700"><Icon name="check" size={25} /></div>
           <h2 className="text-lg font-bold mb-2">Induction Complete</h2>
           <p className="text-sm text-gray-600 mb-4">
             You have successfully completed the Safety Induction.
@@ -112,6 +122,7 @@ export function SafetyInductionPage() {
 
   const currentContent = contents[currentIndex];
   const isLast = currentIndex === contents.length - 1;
+  const currentContentUrl = resolveContentUrl(currentContent);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -142,19 +153,13 @@ export function SafetyInductionPage() {
               <p className="text-sm text-gray-600 mb-4">{currentContent.Description}</p>
             )}
 
-            <div className="bg-gray-100 rounded p-8 text-center mb-4">
+            <div className="bg-gray-100 rounded p-4 text-center mb-4">
               {currentContent.ContentType === 'VIDEO' ? (
-                <div>
-                  <div className="text-4xl mb-2">&#9654;</div>
-                  <p className="text-sm text-gray-500">Video Content</p>
-                  <p className="text-xs text-gray-400 mt-1">{currentContent.ContentUrl}</p>
-                </div>
+                <video className="w-full max-h-[520px] rounded" controls preload="metadata" src={currentContentUrl} />
+              ) : currentContent.ContentType === 'PDF' ? (
+                <iframe className="w-full h-[520px] rounded bg-white" src={currentContentUrl} title={currentContent.Title || 'Safety induction document'} />
               ) : (
-                <div>
-                  <div className="text-4xl mb-2">&#128444;</div>
-                  <p className="text-sm text-gray-500">Image Content</p>
-                  <p className="text-xs text-gray-400 mt-1">{currentContent.ContentUrl}</p>
-                </div>
+                <img className="mx-auto max-h-[520px] w-auto rounded object-contain" src={currentContentUrl} alt={currentContent.Title || 'Safety induction content'} />
               )}
             </div>
 
@@ -179,7 +184,10 @@ export function SafetyInductionPage() {
 
         {isLast && (
           <div className="bg-white border rounded p-6">
-            <h3 className="font-medium mb-4">Acknowledgement</h3>
+             <div className="flex items-center justify-between gap-3 mb-4">
+               <h3 className="font-medium mb-0">Acknowledgement</h3>
+               <DevFillButton onClick={() => setAcknowledged(true)} label="Centang contoh" />
+             </div>
             <label className="flex items-start gap-3 cursor-pointer mb-4">
               <input
                 type="checkbox"

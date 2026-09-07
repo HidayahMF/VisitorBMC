@@ -1,17 +1,19 @@
 import express, { type Express } from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { healthCheck } from './routes/health.routes';
 import { login, logout, me } from './routes/auth.routes';
 import { authenticate } from './middleware/authenticate';
 import { authorize } from './middleware/authorize';
+import { developmentOnly } from './middleware/developmentOnly';
 import * as companiesRoutes from './routes/companies.routes';
 import * as visitorsRoutes from './routes/visitors.routes';
 import * as visitsRoutes from './routes/visits.routes';
 import * as safetyInductionsRoutes from './routes/safety-inductions.routes';
+import * as hrisRoutes from './routes/hris.routes';
 
 const app: Express = express();
 
@@ -24,13 +26,7 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-const limiter = rateLimit({
-  windowMs: env.RATE_LIMIT_WINDOW_MS,
-  max: env.RATE_LIMIT_MAX_REQUESTS,
-  message: { error: 'Too many requests, please try again later.' },
-});
-app.use('/api/auth/login', limiter);
+app.use('/uploads', express.static(path.resolve(env.UPLOAD_DIR)));
 
 app.get('/api/health', healthCheck);
 
@@ -44,13 +40,16 @@ app.get('/api/companies/:id', authenticate, companiesRoutes.getById);
 app.post('/api/companies', authenticate, companiesRoutes.create);
 app.put('/api/companies/:id', authenticate, authorize('ADMIN'), companiesRoutes.update);
 app.patch('/api/companies/:id/status', authenticate, authorize('ADMIN'), companiesRoutes.updateStatus);
+app.delete('/api/companies/:id', authenticate, authorize('ADMIN'), developmentOnly, companiesRoutes.remove);
 
 app.get('/api/visitors', authenticate, visitorsRoutes.list);
 app.get('/api/visitors/search', authenticate, visitorsRoutes.search);
+app.get('/api/visitors/:id/history', authenticate, visitorsRoutes.history);
 app.get('/api/visitors/:id', authenticate, visitorsRoutes.getById);
 app.post('/api/visitors', authenticate, visitorsRoutes.create);
 app.put('/api/visitors/:id', authenticate, authorize('ADMIN'), visitorsRoutes.update);
 app.patch('/api/visitors/:id/status', authenticate, authorize('ADMIN'), visitorsRoutes.updateStatus);
+app.delete('/api/visitors/:id', authenticate, authorize('ADMIN'), developmentOnly, visitorsRoutes.remove);
 
 app.get('/api/visits', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.list);
 app.get('/api/visits/active', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.active);
@@ -61,10 +60,17 @@ app.post('/api/visits/safety-check', authenticate, authorize('ADMIN', 'SECURITY'
 app.post('/api/visits/check-duplicate', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.checkDuplicate);
 app.put('/api/visits/:id/checkin', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.checkIn);
 app.put('/api/visits/:id/checkout', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.checkOut);
+app.delete('/api/visits/:id', authenticate, authorize('ADMIN'), developmentOnly, visitsRoutes.remove);
 
 app.get('/api/safety-inductions/active/contents', authenticate, safetyInductionsRoutes.getActiveContents);
+app.get('/api/safety-inductions/manage/contents', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.managedContents);
+app.post('/api/safety-inductions/manage/contents', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.uploadContent);
+app.patch('/api/safety-inductions/manage/contents/:id/status', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.updateContentStatus);
+app.delete('/api/safety-inductions/manage/contents/:id', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.removeContent);
 app.get('/api/safety-inductions/visitor/:visitorId/history', authenticate, safetyInductionsRoutes.getVisitorHistory);
 app.post('/api/safety-inductions/complete', authenticate, safetyInductionsRoutes.complete);
+
+app.get('/api/hris/employees', authenticate, authorize('ADMIN', 'SECURITY'), hrisRoutes.search);
 
 app.use(notFound);
 app.use(errorHandler);

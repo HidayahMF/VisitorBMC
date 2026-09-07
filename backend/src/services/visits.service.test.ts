@@ -48,33 +48,39 @@ const insideVisitRow = { Id: 1, Status: 'IN' };
 const completedVisitRow = {
   Id: 1, VisitCode: 'VIS-20260907-001', CompanyId: 1, HostName: 'Host', Purpose: 'Meeting',
   VisitDate: new Date(), CheckInTime: new Date(), CheckOutTime: null, Status: 'IN',
-  CreatedBy: 1, CheckedOutBy: null, CreatedAt: new Date(), UpdatedAt: null,
+  CreatedBy: 1, CheckedInBy: 1, CheckedOutBy: null, CreatedAt: new Date(), UpdatedAt: null,
   CompanyName: 'PT ABC',
 };
 
 describe('checkInVisit', () => {
   it('throws 404 when visit not found', async () => {
     mockQuery.mockResolvedValueOnce({ recordset: [] });
-    await expect(checkInVisit(999)).rejects.toThrow('Visit not found');
+    await expect(checkInVisit(999, 1)).rejects.toThrow('Visit not found');
   });
 
   it('throws 400 when visit not ready for check-in', async () => {
     mockQuery.mockResolvedValueOnce({ recordset: [{ Id: 1, Status: 'PENDING_INDUCTION' }] });
-    await expect(checkInVisit(1)).rejects.toThrow('Visit is not ready for check-in');
+    await expect(checkInVisit(1, 1)).rejects.toThrow('Visit is not ready for check-in');
   });
 
-  it('updates status to IN for a ready visit', async () => {
+  it('updates status to IN, records checked-in user, and writes audit log', async () => {
     mockQuery
-      .mockResolvedValueOnce({ recordset: [readyVisitRow] }); // visit lookup
-
-    // getVisitById query chain happens after UPDATE
-    mockQuery
-      .mockResolvedValueOnce({ recordset: [] })               // UPDATE query result (empty recordset fine)
+      .mockResolvedValueOnce({ recordset: [readyVisitRow] }) // transaction SELECT
+      .mockResolvedValueOnce({ rowsAffected: [1], recordset: [] }) // UPDATE
+      .mockResolvedValueOnce({ recordset: [] }) // audit INSERT
       .mockResolvedValueOnce({ recordset: [completedVisitRow] }) // getVisitById visit
-      .mockResolvedValueOnce({ recordset: [] });              // getVisitById visitors (none)
+      .mockResolvedValueOnce({ recordset: [] }); // getVisitById visitors
 
-    const result = await checkInVisit(1);
+    const result = await checkInVisit(1, 7, '10.0.0.1');
     expect(result).toBeDefined();
+    expect(result.CheckedInBy).toBe(1);
+
+    const updateCall = mockQuery.mock.calls[1][0] as string;
+    expect(updateCall).toContain('CheckedInBy');
+    expect(updateCall).toContain('CheckInTime = SYSUTCDATETIME()');
+
+    const auditCall = mockQuery.mock.calls[2][0] as string;
+    expect(auditCall).toContain('INSERT INTO vms.AuditLogs');
   });
 });
 
@@ -89,15 +95,20 @@ describe('checkOutVisit', () => {
     await expect(checkOutVisit(1, 1)).rejects.toThrow('Visit is not currently inside');
   });
 
-  it('updates status to OUT for an inside visit', async () => {
+  it('updates status to OUT, records checked-out user, and writes audit log', async () => {
     mockQuery
       .mockResolvedValueOnce({ recordset: [insideVisitRow] })
-      .mockResolvedValueOnce({ recordset: [] })               // UPDATE result
+      .mockResolvedValueOnce({ rowsAffected: [1], recordset: [] }) // UPDATE + audit
+      .mockResolvedValueOnce({ recordset: [] }) // audit INSERT
       .mockResolvedValueOnce({ recordset: [{ ...completedVisitRow, Status: 'OUT', CheckOutTime: new Date() }] })
       .mockResolvedValueOnce({ recordset: [] });
 
-    const result = await checkOutVisit(1, 1);
+    const result = await checkOutVisit(1, 2);
     expect(result).toBeDefined();
+    expect(result.Status).toBe('OUT');
+
+    const auditCall = mockQuery.mock.calls[2][0] as string;
+    expect(auditCall).toContain('INSERT INTO vms.AuditLogs');
   });
 });
 

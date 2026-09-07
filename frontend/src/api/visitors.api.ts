@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { type Visitor, type VisitorListResponse, type CreateVisitorResponse } from '../types/visitor';
+import { type Visitor, type VisitorListResponse, type CreateVisitorResponse, type VisitorVisitHistoryEntry } from '../types/visitor';
 
 function toVisitor(row: Record<string, unknown>): Visitor {
   return {
@@ -62,4 +62,12 @@ export async function updateVisitorStatus(id: number, isActive: boolean): Promis
     method: 'PATCH',
     body: JSON.stringify({ isActive }),
   }));
+}
+
+export async function deleteVisitor(id: number): Promise<void> {
+  await apiClient<void>(`/visitors/${id}`, { method: 'DELETE' });
+}
+
+export async function getVisitorVisitHistory(id: number): Promise<VisitorVisitHistoryEntry[]> {
+  return apiClient<VisitorVisitHistoryEntry[]>(`/visitors/${id}/history`);
 }

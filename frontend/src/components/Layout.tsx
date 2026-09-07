@@ -1,49 +1,72 @@
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Icon, type IconName } from './Icon';
+import logo from '../assets/logobmcbg1.png';
+import { isNavRouteActive } from '../utils/nav';
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const location = useLocation();
 
-  const links = [
-    { to: '/dashboard', label: 'Dashboard' },
-    { to: '/companies', label: 'Companies' },
-    { to: '/visitors', label: 'Visitors' },
-    { to: '/visits', label: 'Visits' },
-    { to: '/visits/active', label: 'Inside' },
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const links: { to: string; label: string; icon: IconName; exact?: boolean; exclude?: string[]; roles?: string[] }[] = [
+    { to: '/dashboard', label: 'Dashboard', icon: 'dashboard', exact: true },
+    { to: '/companies', label: 'Companies', icon: 'building' },
+    { to: '/visitors', label: 'Visitors', icon: 'users' },
+    { to: '/visits', label: 'Visits', icon: 'calendar', exclude: ['/visits/active'] },
+    { to: '/visits/active', label: 'Inside', icon: 'inside', exact: true },
+    { to: '/safety-inductions/manage', label: 'Safety Content', icon: 'building', exact: true, roles: ['ADMIN', 'SECURITY'] },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link to="/dashboard" className="text-lg font-bold text-blue-900">BMC</Link>
-            <nav className="flex gap-1">
-              {links.map((link) => (
+    <div className="app-shell min-h-screen bg-gray-50">
+      <header className="app-header">
+        <div className="app-header-inner">
+          <div className="brand-area">
+            <Link to="/dashboard" className="brand-link" aria-label="BMC Visitor Management">
+              <img src={logo} alt="Braja Mukti Cakra" className="brand-logo" />
+            </Link>
+            <nav className={`app-nav ${mobileOpen ? 'is-open' : ''}`} aria-label="Main navigation">
+              {links.filter((link) => !link.roles || link.roles.includes(user?.role || '')).map((link) => (
                 <Link
                   key={link.to}
                   to={link.to}
-                  className={`px-3 py-1.5 text-sm rounded ${
-                    location.pathname === link.to || (link.to !== '/dashboard' && location.pathname.startsWith(link.to))
-                      ? 'bg-blue-50 text-blue-700 font-medium'
-                      : 'text-gray-600 hover:bg-gray-100'
+                  onClick={() => setMobileOpen(false)}
+                  className={`nav-link ${
+                    isNavRouteActive(location.pathname, link)
+                      ? 'is-active'
+                      : ''
                   }`}
                 >
+                  <Icon name={link.icon} size={16} />
                   {link.label}
                 </Link>
               ))}
             </nav>
           </div>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-gray-500">{user?.name}</span>
-            <span className="text-xs text-gray-400">{user?.role}</span>
-            <button onClick={logout} className="text-gray-500 hover:text-gray-800">Logout</button>
+          <div className="user-area">
+            <div className="user-avatar" aria-hidden="true">{user?.name?.charAt(0) || 'U'}</div>
+            <div className="user-copy">
+              <span className="user-name">{user?.name}</span>
+              <span className="user-role">{user?.role}</span>
+            </div>
+            <button onClick={logout} className="logout-button" title="Logout">
+              <Icon name="logout" size={17} />
+              <span>Logout</span>
+            </button>
+            <button
+              type="button"
+              className="mobile-menu-button"
+              onClick={() => setMobileOpen((open) => !open)}
+              aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            >
+              <Icon name={mobileOpen ? 'close' : 'menu'} size={20} />
+            </button>
           </div>
         </div>
       </header>
-      <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>
+      <main className="app-main">{children}</main>
     </div>
   );
 }

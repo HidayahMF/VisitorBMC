@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listVisitors } from '../api/visitors.api';
+import { deleteVisitor, listVisitors } from '../api/visitors.api';
 import { listCompanies } from '../api/companies.api';
 import { type Visitor } from '../types/visitor';
 import { type Company } from '../types/company';
 import { Layout } from '../components/Layout';
+import { useAuth } from '../context/AuthContext';
+import { DevDeleteButton } from '../components/DevFillButton';
 
 export function VisitorsPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -36,6 +39,16 @@ export function VisitorsPage() {
     setLoading(false);
   }
 
+  async function handleDelete(visitor: Visitor) {
+    if (!confirm(`Hapus visitor "${visitor.visitorName}"?`)) return;
+    try {
+      await deleteVisitor(visitor.id);
+      await load();
+    } catch {
+      alert('Failed to delete visitor');
+    }
+  }
+
   return (
     <Layout>
       <div className="flex items-center justify-between mb-4">
@@ -61,7 +74,7 @@ export function VisitorsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-gray-500">
-                <th className="py-2">Code</th><th className="py-2">Name</th><th className="py-2">Company</th><th className="py-2">Phone</th><th className="py-2">Status</th>
+                <th className="py-2">Code</th><th className="py-2">Name</th><th className="py-2">Company</th><th className="py-2">Phone</th><th className="py-2">Status</th>{user?.role === 'ADMIN' && <th className="py-2 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -71,6 +84,7 @@ export function VisitorsPage() {
                   <td className="py-2">
                     <button onClick={() => navigate(`/visitors/${v.id}`)} className="text-blue-700 hover:underline">{v.visitorName}</button>
                   </td>
+                  {user?.role === 'ADMIN' && <td className="py-2 text-right"><DevDeleteButton onClick={() => handleDelete(v)} /></td>}
                   <td className="py-2 text-gray-600">{v.company?.companyName}</td>
                   <td className="py-2 text-gray-500">{v.phoneNumber || '-'}</td>
                   <td className="py-2">

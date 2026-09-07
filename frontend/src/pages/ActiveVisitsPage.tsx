@@ -1,24 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getActiveVisits, checkOutVisit } from '../api/visits.api';
+import { deleteVisit, getActiveVisits, checkOutVisit } from '../api/visits.api';
 import { listCompanies } from '../api/companies.api';
 import { Layout } from '../components/Layout';
 import { type Visit } from '../types/visit';
 import { type Company } from '../types/company';
+import { useAuth } from '../context/AuthContext';
+import { DevDeleteButton } from '../components/DevFillButton';
 
 export function ActiveVisitsPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [visits, setVisits] = useState<Visit[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [search, setSearch] = useState('');
   const [filterCompany, setFilterCompany] = useState<number | undefined>();
+  const [filterDate, setFilterDate] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [checkingOut, setCheckingOut] = useState<number | null>(null);
 
   useEffect(() => { loadCompanies(); }, []);
-  useEffect(() => { load(); }, [search, filterCompany, page]);
+  useEffect(() => { load(); }, [search, filterCompany, filterDate, page]);
 
   async function loadCompanies() {
     try {
@@ -33,6 +37,7 @@ export function ActiveVisitsPage() {
       const res = await getActiveVisits({
         q: search || undefined,
         companyId: filterCompany,
+        date: filterDate || undefined,
         page,
         limit: 20,
       });
@@ -52,6 +57,16 @@ export function ActiveVisitsPage() {
       alert('Failed to check out');
     }
     setCheckingOut(null);
+  }
+
+  async function handleDelete(visit: Visit) {
+    if (!confirm(`Hapus visit ${visit.VisitCode}?`)) return;
+    try {
+      await deleteVisit(visit.Id);
+      await load();
+    } catch {
+      alert('Failed to delete visit');
+    }
   }
 
   return (
@@ -77,6 +92,12 @@ export function ActiveVisitsPage() {
           <option value="">All Companies</option>
           {companies.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
         </select>
+        <input
+          type="date"
+          value={filterDate}
+          onChange={(e) => { setFilterDate(e.target.value); setPage(1); }}
+          className="px-3 py-2 border border-gray-300 rounded text-sm"
+        />
       </div>
 
       {loading ? (
@@ -111,6 +132,7 @@ export function ActiveVisitsPage() {
                     >
                       Detail
                     </button>
+                    {user?.role === 'ADMIN' && <DevDeleteButton onClick={() => handleDelete(v)} />}
                     <button
                       onClick={() => handleCheckout(v.Id)}
                       disabled={checkingOut === v.Id}

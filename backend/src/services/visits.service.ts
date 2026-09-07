@@ -1,6 +1,7 @@
 import { getDbConnection, sql } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { checkVisitorSafetyClearance } from './safety-clearance.service';
+import { logAudit } from './audit-log.service';
 
 export interface IVisit {
   Id: number;
@@ -14,6 +15,7 @@ export interface IVisit {
   CheckOutTime: Date | null;
   Status: 'PENDING_INDUCTION' | 'READY_FOR_CHECKIN' | 'IN' | 'OUT' | 'CANCELLED';
   CreatedBy: number;
+  CheckedInBy: number | null;
   CheckedOutBy: number | null;
   CreatedAt: Date;
   UpdatedAt: Date | null;
@@ -58,6 +60,7 @@ export interface ICreateVisitParams {
   purpose: string;
   visitDate: string;
   visitorIds: number[];
+  ipAddress?: string;
 }
 
 const MAX_PAGE_SIZE = 100;
@@ -75,6 +78,7 @@ function toVisit(row: IVisit): IVisit {
     CheckOutTime: row.CheckOutTime || null,
     Status: row.Status,
     CreatedBy: row.CreatedBy,
+    CheckedInBy: row.CheckedInBy || null,
     CheckedOutBy: row.CheckedOutBy || null,
     CreatedAt: row.CreatedAt,
     UpdatedAt: row.UpdatedAt,
@@ -86,23 +90,29 @@ async function generateVisitCode(transaction: sql.Transaction, visitDate: string
   const result = await transaction.request()
     .input('visitDate', sql.Date, visitDate)
     .query(`
-      SELECT Counter FROM VisitDailyCounters WITH (UPDLOCK, HOLDLOCK)
+      SELECT VisitCode FROM vms.Visits WITH (UPDLOCK, HOLDLOCK)
       WHERE VisitDate = @visitDate
     `);
 
-  let counter = 1;
-  if (result.recordset.length === 0) {
-    await transaction.request()
-      .input('visitDate', sql.Date, visitDate)
-      .input('counter', sql.Int, counter)
-      .query('INSERT INTO VisitDailyCounters (VisitDate, Counter) VALUES (@visitDate, @counter)');
-  } else {
-    counter = result.recordset[0].Counter + 1;
-    await transaction.request()
-      .input('visitDate', sql.Date, visitDate)
-      .input('counter', sql.Int, counter)
-      .query('UPDATE VisitDailyCounters SET Counter = @counter, UpdatedAt = SYSUTCDATETIME() WHERE VisitDate = @visitDate');
+  const usedCounters = new Set<number>();
+  for (const row of result.recordset) {
+    const match = String(row.VisitCode).match(/-(\d+)$/);
+    if (match) usedCounters.add(Number(match[1]));
   }
+
+  let counter = 1;
+  while (usedCounters.has(counter)) counter += 1;
+
+  await transaction.request()
+    .input('visitDate', sql.Date, visitDate)
+    .input('counter', sql.Int, counter)
+    .query(`
+      MERGE vms.VisitDailyCounters AS target
+      USING (SELECT @visitDate AS VisitDate, @counter AS Counter) AS source
+      ON target.VisitDate = source.VisitDate
+      WHEN MATCHED THEN UPDATE SET Counter = CASE WHEN target.Counter < source.Counter THEN source.Counter ELSE target.Counter END, UpdatedAt = SYSUTCDATETIME()
+      WHEN NOT MATCHED THEN INSERT (VisitDate, Counter) VALUES (source.VisitDate, source.Counter);
+    `);
 
   return `VIS-${visitDate.replace(/-/g, '')}-${String(counter).padStart(3, '0')}`;
 }
@@ -127,8 +137,8 @@ export async function listVisits(params: {
   if (params.q) {
     conditions.push(`(v.VisitCode LIKE @q OR v.HostName LIKE @q OR EXISTS (
       SELECT 1
-      FROM VisitVisitors searchVv
-      INNER JOIN Visitors searchVisitor ON searchVv.VisitorId = searchVisitor.Id
+      FROM vms.VisitVisitors searchVv
+      INNER JOIN vms.Visitors searchVisitor ON searchVv.VisitorId = searchVisitor.Id
       WHERE searchVv.VisitId = v.Id AND searchVisitor.VisitorName LIKE @q
     ))`);
   }
@@ -162,20 +172,20 @@ export async function listVisits(params: {
 
   const countResult = await countRequest.query<{ total: number }>(`
     SELECT COUNT(DISTINCT v.Id) AS total
-    FROM Visits v
-    LEFT JOIN VisitVisitors vv ON v.Id = vv.VisitId
-    LEFT JOIN Visitors vis ON vv.VisitorId = vis.Id
+    FROM vms.Visits v
+    LEFT JOIN vms.VisitVisitors vv ON v.Id = vv.VisitId
+    LEFT JOIN vms.Visitors vis ON vv.VisitorId = vis.Id
     ${whereClause}
   `);
   const total = countResult.recordset[0].total;
 
   const dataResult = await request.query(`
      SELECT v.Id, v.VisitCode, v.CompanyId, c.CompanyName, v.HostName, v.Purpose, v.VisitDate,
-            v.CheckInTime, v.CheckOutTime, v.Status, v.CreatedBy, v.CheckedOutBy,
+            v.CheckInTime, v.CheckOutTime, v.Status, v.CreatedBy, v.CheckedInBy, v.CheckedOutBy,
              v.CreatedAt, v.UpdatedAt,
-             (SELECT COUNT(*) FROM VisitVisitors vv2 WHERE vv2.VisitId = v.Id) AS VisitorCount
-     FROM Visits v
-     INNER JOIN Companies c ON v.CompanyId = c.Id
+             (SELECT COUNT(*) FROM vms.VisitVisitors vv2 WHERE vv2.VisitId = v.Id) AS VisitorCount
+     FROM vms.Visits v
+     INNER JOIN vms.Companies c ON v.CompanyId = c.Id
     ${whereClause}
     ORDER BY v.Id DESC
     OFFSET @offset ROWS
@@ -201,11 +211,11 @@ export async function getVisitById(id: number): Promise<IVisitDetail | null> {
     .input('id', sql.Int, id)
     .query(`
       SELECT v.Id, v.VisitCode, v.CompanyId, v.HostName, v.Purpose, v.VisitDate,
-             v.CheckInTime, v.CheckOutTime, v.Status, v.CreatedBy, v.CheckedOutBy,
+             v.CheckInTime, v.CheckOutTime, v.Status, v.CreatedBy, v.CheckedInBy, v.CheckedOutBy,
              v.CreatedAt, v.UpdatedAt,
              c.CompanyName
-      FROM Visits v
-      INNER JOIN Companies c ON v.CompanyId = c.Id
+      FROM vms.Visits v
+      INNER JOIN vms.Companies c ON v.CompanyId = c.Id
       WHERE v.Id = @id
     `);
 
@@ -216,8 +226,8 @@ export async function getVisitById(id: number): Promise<IVisitDetail | null> {
     .input('visitId', sql.Int, id)
     .query(`
       SELECT vis.Id, vis.VisitorCode, vis.VisitorName, vis.PhoneNumber
-      FROM VisitVisitors vv
-      INNER JOIN Visitors vis ON vv.VisitorId = vis.Id
+      FROM vms.VisitVisitors vv
+      INNER JOIN vms.Visitors vis ON vv.VisitorId = vis.Id
       WHERE vv.VisitId = @visitId
       ORDER BY vis.Id
     `);
@@ -250,6 +260,7 @@ export async function getVisitById(id: number): Promise<IVisitDetail | null> {
     CheckOutTime: visitRow.CheckOutTime || null,
     Status: visitRow.Status,
     CreatedBy: visitRow.CreatedBy,
+    CheckedInBy: visitRow.CheckedInBy || null,
     CheckedOutBy: visitRow.CheckedOutBy || null,
     CreatedAt: visitRow.CreatedAt,
     UpdatedAt: visitRow.UpdatedAt,
@@ -287,7 +298,7 @@ export async function createVisit(params: ICreateVisitParams, createdBy: number)
   const companyCheck = await pool
     .request()
     .input('id', sql.Int, companyId)
-    .query('SELECT Id FROM Companies WHERE Id = @id AND IsActive = 1');
+    .query('SELECT c.Id FROM vms.Companies c WHERE c.Id = @id AND c.IsActive = 1');
 
   if (companyCheck.recordset.length === 0) {
     throw new AppError('Company not found or inactive', 404);
@@ -298,10 +309,10 @@ export async function createVisit(params: ICreateVisitParams, createdBy: number)
     .input('visitorIds', sql.NVarChar, uniqueVisitorIds.join(','))
     .input('companyId', sql.Int, companyId)
     .query(`
-      SELECT Id FROM Visitors
-      WHERE Id IN (SELECT value FROM STRING_SPLIT(@visitorIds, ','))
-      AND CompanyId = @companyId
-      AND IsActive = 1
+       SELECT v.Id FROM vms.Visitors v
+       WHERE v.Id IN (SELECT value FROM STRING_SPLIT(@visitorIds, ','))
+       AND v.CompanyId = @companyId
+       AND v.IsActive = 1
     `);
 
   if (visitorCheck.recordset.length !== uniqueVisitorIds.length) {
@@ -329,7 +340,7 @@ export async function createVisit(params: ICreateVisitParams, createdBy: number)
       .input('status', sql.VarChar(20), initialStatus)
       .input('createdBy', sql.Int, createdBy)
       .query(`
-        INSERT INTO Visits (VisitCode, CompanyId, HostName, Purpose, VisitDate, Status, CreatedBy)
+        INSERT INTO vms.Visits (VisitCode, CompanyId, HostName, Purpose, VisitDate, Status, CreatedBy)
         OUTPUT INSERTED.Id, INSERTED.VisitCode, INSERTED.CompanyId, INSERTED.HostName, 
                INSERTED.Purpose, INSERTED.VisitDate, INSERTED.CheckInTime, INSERTED.CheckOutTime,
                INSERTED.Status, INSERTED.CreatedBy, INSERTED.CheckedOutBy, INSERTED.CreatedAt, INSERTED.UpdatedAt
@@ -343,10 +354,23 @@ export async function createVisit(params: ICreateVisitParams, createdBy: number)
         .input('visitId', sql.Int, visitId)
         .input('visitorId', sql.Int, visitorId)
         .query(`
-          INSERT INTO VisitVisitors (VisitId, VisitorId)
+          INSERT INTO vms.VisitVisitors (VisitId, VisitorId)
           VALUES (@visitId, @visitorId)
         `);
     }
+
+    await logAudit(transaction, {
+      userId: createdBy,
+      action: 'VISIT_CREATED',
+      entityType: 'Visit',
+      entityId: visitId,
+      details: JSON.stringify({
+        visitCode,
+        companyId,
+        visitorCount: uniqueVisitorIds.length,
+      }),
+      ipAddress: params.ipAddress ?? null,
+    });
 
     await transaction.commit();
 
@@ -379,8 +403,8 @@ export async function checkVisitorDuplicate(params: {
       .input('phone', sql.NVarChar, normalizedPhone)
       .query(`
         SELECT v.Id, v.VisitorCode, v.VisitorName, v.PhoneNumber, c.CompanyName
-        FROM Visitors v
-        INNER JOIN Companies c ON v.CompanyId = c.Id
+        FROM vms.Visitors v
+        INNER JOIN vms.Companies c ON v.CompanyId = c.Id
         WHERE v.CompanyId = @companyId
           AND LOWER(LTRIM(RTRIM(v.VisitorName))) = @name
           AND LOWER(LTRIM(RTRIM(v.PhoneNumber))) = @phone
@@ -406,8 +430,8 @@ export async function checkVisitorDuplicate(params: {
     .input('name', sql.NVarChar, normalizedName)
     .query(`
       SELECT v.Id, v.VisitorCode, v.VisitorName, v.PhoneNumber, c.CompanyName
-      FROM Visitors v
-      INNER JOIN Companies c ON v.CompanyId = c.Id
+      FROM vms.Visitors v
+      INNER JOIN vms.Companies c ON v.CompanyId = c.Id
       WHERE v.CompanyId = @companyId
         AND LOWER(LTRIM(RTRIM(v.VisitorName))) = @name
       ORDER BY v.CreatedAt DESC
@@ -438,76 +462,167 @@ export async function safetyCheck(params: {
   };
 }
 
-export async function checkInVisit(visitId: number): Promise<IVisitDetail> {
+export async function checkInVisit(
+  visitId: number,
+  checkedInBy: number,
+  ipAddress?: string,
+): Promise<IVisitDetail> {
   const pool = await getDbConnection();
+  const transaction = new sql.Transaction(pool);
+  let transactionStarted = false;
 
-  const visitResult = await pool
-    .request()
-    .input('id', sql.Int, visitId)
-    .query('SELECT Id, Status FROM Visits WHERE Id = @id');
+  try {
+    await transaction.begin();
+    transactionStarted = true;
 
-  if (visitResult.recordset.length === 0) {
-    throw new AppError('Visit not found', 404);
+    const visitResult = await transaction
+      .request()
+      .input('id', sql.Int, visitId)
+      .query('SELECT Id, Status FROM vms.Visits WHERE Id = @id');
+
+    if (visitResult.recordset.length === 0) {
+      throw new AppError('Visit not found', 404);
+    }
+
+    const visit = visitResult.recordset[0];
+    if (visit.Status !== 'READY_FOR_CHECKIN') {
+      throw new AppError('Visit is not ready for check-in. Current status: ' + visit.Status, 400);
+    }
+
+    const updateResult = await transaction
+      .request()
+      .input('id', sql.Int, visitId)
+      .input('checkedInBy', sql.Int, checkedInBy)
+      .query(`
+        UPDATE vms.Visits
+        SET Status = 'IN',
+            CheckInTime = SYSUTCDATETIME(),
+            CheckedInBy = @checkedInBy,
+            UpdatedAt = SYSUTCDATETIME()
+        WHERE Id = @id AND Status = 'READY_FOR_CHECKIN'
+      `);
+
+    if ((updateResult.rowsAffected?.[0] ?? 0) === 0) {
+      throw new AppError('Visit is not ready for check-in', 400);
+    }
+
+    await logAudit(transaction, {
+      userId: checkedInBy,
+      action: 'VISIT_CHECKED_IN',
+      entityType: 'Visit',
+      entityId: visitId,
+      ipAddress: ipAddress ?? null,
+    });
+
+    await transaction.commit();
+    transactionStarted = false;
+
+    const detail = await getVisitById(visitId);
+    if (!detail) {
+      throw new AppError('Visit not found after check-in', 500);
+    }
+    return detail;
+  } catch (error) {
+    if (transactionStarted) await transaction.rollback();
+    throw error;
   }
-
-  const visit = visitResult.recordset[0];
-  if (visit.Status !== 'READY_FOR_CHECKIN') {
-    throw new AppError('Visit is not ready for check-in. Current status: ' + visit.Status, 400);
-  }
-
-  await pool
-    .request()
-    .input('id', sql.Int, visitId)
-    .query(`
-      UPDATE Visits
-      SET Status = 'IN',
-          CheckInTime = SYSUTCDATETIME(),
-          UpdatedAt = SYSUTCDATETIME()
-      WHERE Id = @id AND Status = 'READY_FOR_CHECKIN'
-    `);
-
-  const detail = await getVisitById(visitId);
-  if (!detail) {
-    throw new AppError('Visit not found after check-in', 500);
-  }
-  return detail;
 }
 
-export async function checkOutVisit(visitId: number, checkedOutBy: number): Promise<IVisitDetail> {
+export async function checkOutVisit(
+  visitId: number,
+  checkedOutBy: number,
+  ipAddress?: string,
+): Promise<IVisitDetail> {
   const pool = await getDbConnection();
+  const transaction = new sql.Transaction(pool);
+  let transactionStarted = false;
 
-  const visitResult = await pool
-    .request()
-    .input('id', sql.Int, visitId)
-    .query('SELECT Id, Status FROM Visits WHERE Id = @id');
+  try {
+    await transaction.begin();
+    transactionStarted = true;
 
-  if (visitResult.recordset.length === 0) {
-    throw new AppError('Visit not found', 404);
+    const visitResult = await transaction
+      .request()
+      .input('id', sql.Int, visitId)
+      .query('SELECT Id, Status FROM vms.Visits WHERE Id = @id');
+
+    if (visitResult.recordset.length === 0) {
+      throw new AppError('Visit not found', 404);
+    }
+
+    const visit = visitResult.recordset[0];
+    if (visit.Status !== 'IN') {
+      throw new AppError('Visit is not currently inside. Current status: ' + visit.Status, 400);
+    }
+
+    const updateResult = await transaction
+      .request()
+      .input('id', sql.Int, visitId)
+      .input('checkedOutBy', sql.Int, checkedOutBy)
+      .query(`
+        UPDATE vms.Visits
+        SET Status = 'OUT',
+            CheckOutTime = SYSUTCDATETIME(),
+            CheckedOutBy = @checkedOutBy,
+            UpdatedAt = SYSUTCDATETIME()
+        WHERE Id = @id AND Status = 'IN'
+      `);
+
+    if ((updateResult.rowsAffected?.[0] ?? 0) === 0) {
+      throw new AppError('Visit is not currently inside', 400);
+    }
+
+    await logAudit(transaction, {
+      userId: checkedOutBy,
+      action: 'VISIT_CHECKED_OUT',
+      entityType: 'Visit',
+      entityId: visitId,
+      ipAddress: ipAddress ?? null,
+    });
+
+    await transaction.commit();
+    transactionStarted = false;
+
+    const detail = await getVisitById(visitId);
+    if (!detail) {
+      throw new AppError('Visit not found after check-out', 500);
+    }
+    return detail;
+  } catch (error) {
+    if (transactionStarted) await transaction.rollback();
+    throw error;
   }
+}
 
-  const visit = visitResult.recordset[0];
-  if (visit.Status !== 'IN') {
-    throw new AppError('Visit is not currently inside. Current status: ' + visit.Status, 400);
+export async function deleteVisit(id: number): Promise<boolean> {
+  const pool = await getDbConnection();
+  const transaction = new sql.Transaction(pool);
+  let started = false;
+
+  try {
+    await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+    started = true;
+
+    const exists = await transaction.request()
+      .input('id', sql.Int, id)
+      .query('SELECT Id FROM vms.Visits WITH (UPDLOCK, HOLDLOCK) WHERE Id = @id');
+    if (exists.recordset.length === 0) {
+      await transaction.rollback();
+      return false;
+    }
+
+    await transaction.request().input('id', sql.Int, id).query('DELETE FROM vms.VisitorInductionRecords WHERE VisitId = @id');
+    await transaction.request().input('id', sql.Int, id).query("DELETE FROM vms.AuditLogs WHERE EntityType = 'Visit' AND EntityId = @id");
+    await transaction.request().input('id', sql.Int, id).query('DELETE FROM vms.VisitVisitors WHERE VisitId = @id');
+    await transaction.request().input('id', sql.Int, id).query('DELETE FROM vms.Visits WHERE Id = @id');
+
+    await transaction.commit();
+    started = false;
+    return true;
+  } catch (error) {
+    if (started) await transaction.rollback();
+    throw error;
   }
-
-  await pool
-    .request()
-    .input('id', sql.Int, visitId)
-    .input('checkedOutBy', sql.Int, checkedOutBy)
-    .query(`
-      UPDATE Visits
-      SET Status = 'OUT',
-          CheckOutTime = SYSUTCDATETIME(),
-          CheckedOutBy = @checkedOutBy,
-          UpdatedAt = SYSUTCDATETIME()
-      WHERE Id = @id AND Status = 'IN'
-    `);
-
-  const detail = await getVisitById(visitId);
-  if (!detail) {
-    throw new AppError('Visit not found after check-out', 500);
-  }
-  return detail;
 }
 
 export async function getActiveVisits(params: {
@@ -535,8 +650,8 @@ export async function getDashboardStats(): Promise<{
     .input('today', sql.Date, today)
     .query(`
       SELECT COUNT(DISTINCT vv.VisitorId) AS total
-      FROM Visits v
-      INNER JOIN VisitVisitors vv ON v.Id = vv.VisitId
+      FROM vms.Visits v
+      INNER JOIN vms.VisitVisitors vv ON v.Id = vv.VisitId
       WHERE v.VisitDate = @today
     `);
 
@@ -544,8 +659,8 @@ export async function getDashboardStats(): Promise<{
     .request()
     .query(`
       SELECT COUNT(DISTINCT vv.VisitorId) AS total
-      FROM Visits v
-      INNER JOIN VisitVisitors vv ON v.Id = vv.VisitId
+      FROM vms.Visits v
+      INNER JOIN vms.VisitVisitors vv ON v.Id = vv.VisitId
       WHERE v.Status = 'IN'
     `);
 
@@ -554,7 +669,7 @@ export async function getDashboardStats(): Promise<{
     .input('today', sql.Date, today)
     .query(`
       SELECT COUNT(*) AS total
-      FROM Visits
+      FROM vms.Visits
       WHERE VisitDate = @today AND Status = 'OUT'
     `);
 
@@ -563,7 +678,7 @@ export async function getDashboardStats(): Promise<{
     .input('today', sql.Date, today)
     .query(`
       SELECT COUNT(*) AS total
-      FROM Visits
+      FROM vms.Visits
       WHERE VisitDate = @today AND Status = 'PENDING_INDUCTION'
     `);
 

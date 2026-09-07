@@ -1,10 +1,11 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createVisitor } from '../api/visitors.api';
-import { searchCompanies } from '../api/companies.api';
+import { searchCompanies, listCompanies } from '../api/companies.api';
 import { Layout } from '../components/Layout';
 import { type Company } from '../types/company';
 import { type PotentialMatch } from '../types/visitor';
+import { DevFillButton } from '../components/DevFillButton';
 
 export function AddVisitorPage() {
   const navigate = useNavigate();
@@ -54,10 +55,30 @@ export function AddVisitorPage() {
     setLoading(false);
   }
 
+  async function fillExample() {
+    const suffix = Date.now().toString().slice(-6);
+    setName(`Visitor Development Test ${suffix}`);
+    setPhone(`081234${suffix}`);
+    setCompanyQuery('PT');
+    try {
+      const companyResponse = await listCompanies({ active: true, limit: 1 });
+      const companies = companyResponse.data.length > 0
+        ? companyResponse.data
+        : await searchCompanies('PT');
+      const company = companies[0];
+      if (company) {
+        setSelectedCompany(company);
+        setCompanyQuery(company.companyName);
+        setCompanyResults(companies);
+      }
+    } catch { /* the form remains filled for manual company selection */ }
+  }
+
   return (
     <Layout>
       <h1 className="text-xl font-bold mb-4">Add Visitor</h1>
       {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm mb-4">{error}</div>}
+      <div className="mb-4"><DevFillButton onClick={fillExample} /></div>
       {success && (
         <div className="bg-green-50 text-green-700 p-3 rounded text-sm mb-4">
           Created: {success.code} — {success.name}

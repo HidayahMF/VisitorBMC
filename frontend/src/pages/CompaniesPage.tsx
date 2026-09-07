@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { listCompanies, updateCompanyStatus } from '../api/companies.api';
+import { deleteCompany, listCompanies, updateCompanyStatus } from '../api/companies.api';
 import { type Company } from '../types/company';
 import { Layout } from '../components/Layout';
+import { DevDeleteButton } from '../components/DevFillButton';
 
 export function CompaniesPage() {
   const { user } = useAuth();
@@ -33,6 +34,16 @@ export function CompaniesPage() {
       await updateCompanyStatus(c.id, !c.isActive);
       load();
     } catch { /* ignore */ }
+  }
+
+  async function handleDelete(c: Company) {
+    if (!confirm(`Hapus company "${c.companyName}" beserta data development terkait?`)) return;
+    try {
+      await deleteCompany(c.id);
+      await load();
+    } catch {
+      alert('Failed to delete company');
+    }
   }
 
   return (
@@ -88,6 +99,7 @@ export function CompaniesPage() {
                       <button onClick={() => handleToggleStatus(c)} className="text-xs text-gray-500 hover:text-gray-800">
                         {c.isActive ? 'Deactivate' : 'Activate'}
                       </button>
+                      <DevDeleteButton onClick={() => handleDelete(c)} />
                     </td>
                   )}
                 </tr>

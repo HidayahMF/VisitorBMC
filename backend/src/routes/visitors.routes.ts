@@ -7,6 +7,8 @@ import {
   updateVisitor,
   updateVisitorStatus,
   searchVisitors,
+  getVisitorVisitHistory,
+  deleteVisitor,
 } from '../services/visitors.service';
 import { type AuthenticatedRequest } from '../middleware/authenticate';
 
@@ -109,6 +111,29 @@ export async function create(
   }
 }
 
+export async function history(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) {
+      throw new AppError('Invalid visitor ID', 400);
+    }
+
+    const visitor = await getVisitorById(id);
+    if (!visitor) {
+      throw new AppError('Visitor not found', 404);
+    }
+
+    const visits = await getVisitorVisitHistory(id);
+    res.json(visits);
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function update(
   req: AuthenticatedRequest,
   res: Response,
@@ -163,6 +188,22 @@ export async function updateStatus(
     }
 
     res.json(visitor);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function remove(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) throw new AppError('Invalid visitor ID', 400);
+    const deleted = await deleteVisitor(id);
+    if (!deleted) throw new AppError('Visitor not found', 404);
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

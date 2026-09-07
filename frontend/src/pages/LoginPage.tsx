@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import logo from '../assets/logobmcbg1.png';
+import { DevFillButton } from '../components/DevFillButton';
 
 export function LoginPage() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [nip, setNip] = useState('');
+  const [birthdate, setBirthdate] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -19,46 +21,66 @@ export function LoginPage() {
     setIsSubmitting(true);
     setError('');
     try {
-      await login(username, password);
+      await login(nip.trim(), birthdate);
       navigate('/dashboard');
-    } catch {
-      setError('Invalid username or password');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'NIP atau tanggal lahir tidak valid.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded shadow-md w-80">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">BMC</h1>
-          <p className="text-sm text-gray-600">Visitor Management System</p>
+    <div className="login-shell">
+      <section className="login-visual" aria-label="Visitor Management">
+        <div className="login-visual-content">
+          <img src={logo} alt="Braja Mukti Cakra" className="login-logo" />
+          <h2>Visitor Management System</h2>
+          <p>Ruang kerja digital untuk mengelola kedatangan visitor, safety induction, dan aktivitas area perusahaan secara tertib.</p>
         </div>
+      </section>
+      <section className="login-panel">
+        <div className="login-card">
+          <h1>Welcome back</h1>
+          <p className="login-helper">Masuk menggunakan NIP dan tanggal lahir Anda untuk melanjutkan ke VisitorBMC.</p>
+          <div className="mb-5 flex flex-wrap gap-2">
+            <DevFillButton
+              label="Isi data contoh Admin"
+              onClick={() => { setNip('3490'); setBirthdate('110408'); }}
+            />
+            <DevFillButton
+              label="Isi data contoh Security"
+              onClick={() => { setNip('0377'); setBirthdate('030504'); }}
+            />
+          </div>
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">
+          <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm" role="alert">
             {error}
           </div>
         )}
         <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Username</label>
+          <div>
+            <label className="login-label" htmlFor="nip">NIP</label>
             <input
+              id="nip"
               type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded"
+              value={nip}
+              onChange={(e) => setNip(e.target.value)}
+              placeholder="Nomor Induk Pegawai"
+              className="w-full"
               required
               disabled={isSubmitting}
             />
           </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Password</label>
+          <div>
+            <label className="login-label" htmlFor="birthdate">TANGGAL LAHIR</label>
             <input
+              id="birthdate"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded"
+              value={birthdate}
+              onChange={(e) => setBirthdate(e.target.value)}
+              placeholder="DD/MM/YY atau DDMMYY"
+              className="w-full"
               required
               disabled={isSubmitting}
             />
@@ -66,12 +88,13 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-blue-700 text-white py-2 rounded hover:bg-blue-800 disabled:opacity-50"
+            className="w-full"
           >
-            {isSubmitting ? 'Signing In...' : 'Sign In'}
+            {isSubmitting ? 'Memproses...' : 'Masuk'}
           </button>
         </form>
       </div>
+      </section>
     </div>
   );
 }

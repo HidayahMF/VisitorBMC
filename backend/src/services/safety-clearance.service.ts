@@ -42,9 +42,9 @@ interface SafetyRecordRow {
 
 async function getActiveSafetyInduction(pool: sql.ConnectionPool): Promise<SafetyInductionConfig | null> {
   const result = await pool.request().query(`
-    SELECT Id, Title, Version, ValidMonths, ForceReinductionOnNewVersion
-    FROM SafetyInductions
-    WHERE IsActive = 1
+    SELECT si.Id, si.Title, si.Version, si.ValidMonths, si.ForceReinductionOnNewVersion
+    FROM vms.SafetyInductions si
+    WHERE si.IsActive = 1
   `);
 
   if (result.recordset.length === 0) {
@@ -81,7 +81,7 @@ export async function checkVisitorSafetyClearance(
 
   const companyResult = await pool.request()
     .input('companyId', sql.Int, companyId)
-    .query('SELECT Id FROM Companies WHERE Id = @companyId AND IsActive = 1');
+    .query('SELECT c.Id FROM vms.Companies c WHERE c.Id = @companyId AND c.IsActive = 1');
   if (companyResult.recordset.length === 0) {
     throw new AppError('Company not found or inactive', 400);
   }
@@ -96,11 +96,11 @@ export async function checkVisitorSafetyClearance(
     .input('visitorIds', sql.NVarChar, visitorIds.join(','))
     .input('companyId', sql.Int, companyId)
     .query(`
-      SELECT Id, VisitorName
-      FROM Visitors
-      WHERE Id IN (SELECT value FROM STRING_SPLIT(@visitorIds, ','))
-      AND CompanyId = @companyId
-      AND IsActive = 1
+       SELECT v.Id, v.VisitorName
+       FROM vms.Visitors v
+       WHERE v.Id IN (SELECT value FROM STRING_SPLIT(@visitorIds, ','))
+       AND v.CompanyId = @companyId
+       AND v.IsActive = 1
     `);
 
   if (visitorCheck.recordset.length !== visitorIds.length) {
@@ -124,26 +124,69 @@ export async function checkVisitorSafetyClearance(
       vir.CompletedAt,
       vir.ValidUntil,
       vir.InductionVersion
-    FROM Visitors v
-    LEFT JOIN VisitorInductionRecords vir ON v.Id = vir.VisitorId
+    FROM vms.Visitors v
+    LEFT JOIN vms.VisitorInductionRecords vir ON v.Id = vir.VisitorId
     WHERE v.Id IN (${placeholders})
     ORDER BY v.Id, vir.CompletedAt DESC, vir.Id DESC
   `);
 
   const now = new Date();
-  const visitors: VisitorSafetyClearance[] = [];
-  let valid = 0;
-  let required = 0;
-  let expired = 0;
+  const visitors = computeVisitorClearance(
+    visitorCheck.recordset.map((row) => ({ Id: row.Id, VisitorName: row.VisitorName })),
+    recordsResult.recordset,
+    inductionConfig,
+    now,
+  );
 
-  const recordsByVisitor = new Map<number, SafetyRecordRow[]>();
-  for (const row of recordsResult.recordset) {
-    const records = recordsByVisitor.get(row.VisitorId) ?? [];
-    records.push(row);
-    recordsByVisitor.set(row.VisitorId, records);
+  const valid = visitors.filter((v) => v.status === 'VALID').length;
+  const required = visitors.filter((v) => v.status === 'REQUIRED').length;
+  const expired = visitors.filter((v) => v.status === 'EXPIRED').length;
+
+  return {
+    safetyInduction: inductionConfig,
+    summary: {
+      totalVisitors: visitorIds.length,
+      valid,
+      required,
+      expired,
+      requiresInduction: required + expired,
+    },
+    visitors,
+  };
+}
+
+interface VisitorIdentity {
+  Id: number;
+  VisitorName: string;
+}
+
+export interface SafetyRecord {
+  VisitorId: number;
+  CompletedAt: Date | null;
+  ValidUntil: Date | null;
+  InductionVersion: number | null;
+}
+
+/**
+ * Pure decision logic for VALID / REQUIRED / EXPIRED.
+ * Single source of truth — used by both checkVisitorSafetyClearance
+ * (via the connection pool) and completeInduction (inside its transaction).
+ */
+export function computeVisitorClearance(
+  visitorRows: VisitorIdentity[],
+  records: SafetyRecord[],
+  config: SafetyInductionConfig,
+  now: Date,
+): VisitorSafetyClearance[] {
+  const recordsByVisitor = new Map<number, SafetyRecord[]>();
+  for (const row of records) {
+    const list = recordsByVisitor.get(row.VisitorId) ?? [];
+    list.push(row);
+    recordsByVisitor.set(row.VisitorId, list);
   }
 
-  for (const visitor of visitorCheck.recordset) {
+  const visitors: VisitorSafetyClearance[] = [];
+  for (const visitor of visitorRows) {
     const rows = recordsByVisitor.get(visitor.Id) ?? [];
     const validRecord = rows.find((row) => row.CompletedAt && row.ValidUntil && new Date(row.ValidUntil) > now);
     const row = validRecord ?? rows[0];
@@ -153,7 +196,6 @@ export async function checkVisitorSafetyClearance(
     if (!row || !row.CompletedAt) {
       status = 'REQUIRED';
       reason = 'NEVER_COMPLETED';
-      required++;
     } else {
       const validUntil = row.ValidUntil ? new Date(row.ValidUntil) : new Date(0);
       const inductionVersion = row.InductionVersion ?? 0;
@@ -161,14 +203,11 @@ export async function checkVisitorSafetyClearance(
       if (validUntil <= now) {
         status = 'EXPIRED';
         reason = 'EXPIRED';
-        expired++;
-      } else if (inductionVersion < inductionConfig.version && inductionConfig.forceReinductionOnNewVersion) {
+      } else if (inductionVersion < config.version && config.forceReinductionOnNewVersion) {
         status = 'REQUIRED';
         reason = 'NEW_VERSION_REQUIRED';
-        required++;
       } else {
         status = 'VALID';
-        valid++;
       }
     }
 
@@ -183,17 +222,7 @@ export async function checkVisitorSafetyClearance(
     });
   }
 
-  return {
-    safetyInduction: inductionConfig,
-    summary: {
-      totalVisitors: visitorIds.length,
-      valid,
-      required,
-      expired,
-      requiresInduction: required + expired,
-    },
-    visitors,
-  };
+  return visitors;
 }
 
 export async function determineVisitInitialStatus(

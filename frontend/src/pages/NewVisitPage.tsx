@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { searchCompanies, createCompany } from '../api/companies.api';
+import { searchCompanies, listCompanies, createCompany } from '../api/companies.api';
 import { listVisitors, createVisitor } from '../api/visitors.api';
 import { safetyCheck, createVisit, checkDuplicate } from '../api/visits.api';
+import { searchEmployees, type Employee } from '../api/hris.api';
 import { Layout } from '../components/Layout';
 import { type Company } from '../types/company';
 import { type Visitor } from '../types/visitor';
 import { type SafetyCheckSummary, type VisitorSafetyCheck } from '../types/visit';
+import { DevFillButton } from '../components/DevFillButton';
 
 interface SelectedVisitor extends Visitor {
   safetyStatus?: VisitorSafetyCheck;
@@ -29,6 +31,9 @@ export function NewVisitPage() {
   const [showNewCompany, setShowNewCompany] = useState(false);
 
   const [hostName, setHostName] = useState('');
+  const [hostQuery, setHostQuery] = useState('');
+  const [hostResults, setHostResults] = useState<Employee[]>([]);
+  const [hostOpen, setHostOpen] = useState(false);
   const [purpose, setPurpose] = useState('');
   const [visitDate, setVisitDate] = useState(() => {
     const now = new Date();
@@ -47,7 +52,10 @@ export function NewVisitPage() {
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
 
   const [safetyResult, setSafetyResult] = useState<SafetyCheckSummary | null>(null);
+  const [safetyResultKey, setSafetyResultKey] = useState<string | null>(null);
   const [safetyLoading, setSafetyLoading] = useState(false);
+  const safetyRequestId = useRef(0);
+  const safetyStartedKey = useRef<string | null>(null);
 
   const handleCompanySearch = useCallback(async (q: string) => {
     setCompanyQuery(q);
@@ -84,11 +92,31 @@ export function NewVisitPage() {
     return () => clearTimeout(t);
   }, [selectedCompany, visitors]);
 
-  useEffect(() => {
-    if (visitors.length > 0 && selectedCompany) {
-      runSafetyCheck();
+  const handleHostSearch = useCallback(async (q: string) => {
+    setHostQuery(q);
+    setHostName(q);
+    setHostOpen(true);
+    if (q.trim().length < 2) {
+      setHostResults([]);
+      return;
     }
-  }, [visitors, selectedCompany]);
+    const t = setTimeout(async () => {
+      try {
+        const data = await searchEmployees(q);
+        setHostResults(data);
+      } catch {
+        setHostResults([]);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, []);
+
+  function handleSelectHost(employee: Employee) {
+    setHostName(employee.name);
+    setHostQuery(employee.name);
+    setHostOpen(false);
+    setHostResults([]);
+  }
 
   async function handleCreateCompany() {
     if (!newCompanyName.trim()) return;
@@ -141,6 +169,47 @@ export function NewVisitPage() {
     setCheckingDuplicate(false);
   }
 
+  async function fillExample() {
+    setError('');
+    try {
+      const companyResponse = await listCompanies({ active: true, limit: 1 });
+      const companies = companyResponse.data.length > 0
+        ? companyResponse.data
+        : await searchCompanies('PT');
+      const company = companies[0];
+      if (!company) {
+        setError('Tidak ada company contoh yang tersedia.');
+        return;
+      }
+
+      const visitorResponse = await listVisitors({
+        companyId: company.id,
+        active: true,
+        limit: 2,
+      });
+      let exampleVisitors = visitorResponse.data;
+      if (exampleVisitors.length === 0) {
+        const suffix = Date.now().toString().slice(-6);
+        const createdVisitor = await createVisitor({
+          visitorName: `Visitor Development Test ${suffix}`,
+          companyId: company.id,
+          phoneNumber: `081234${suffix}`,
+        });
+        exampleVisitors = [{ ...createdVisitor.visitor, company }];
+      }
+
+      setSelectedCompany(company);
+      setCompanyQuery(company.companyName);
+      setCompanyResults(companies);
+      setHostName('Hidayah Muhammad Fadillah');
+      setHostQuery('Hidayah Muhammad Fadillah');
+      setPurpose('Development workflow test');
+      setVisitors(exampleVisitors.slice(0, 2));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Gagal mengisi data contoh');
+    }
+  }
+
   function handleSelectExistingVisitor(visitor: Visitor) {
     if (!visitors.find(v => v.id === visitor.id)) {
       setVisitors(prev => [...prev, visitor]);
@@ -171,23 +240,63 @@ export function NewVisitPage() {
     setVisitors(prev => prev.filter(v => v.id !== id));
   }
 
-  async function runSafetyCheck() {
-    if (!selectedCompany || visitors.length === 0) return;
+  const visitorIdsKey = visitors
+    .map((visitor) => visitor.id)
+    .sort((a, b) => a - b)
+    .join(',');
+  const safetyKey = selectedCompany ? `${selectedCompany.id}:${visitorIdsKey}` : '';
+  const hasCurrentSafetyResult = Boolean(
+    safetyResult && safetyResultKey === safetyKey,
+  );
+
+  const runSafetyCheck = useCallback(async (
+    companyId: number,
+    visitorIds: number[],
+    requestKey: string,
+    force = false,
+  ) => {
+    if (!force && safetyStartedKey.current === requestKey) return;
+
+    safetyStartedKey.current = requestKey;
+    const requestId = ++safetyRequestId.current;
     setSafetyLoading(true);
+    setSafetyResult(null);
+    setSafetyResultKey(null);
     try {
       const result = await safetyCheck({
-        companyId: selectedCompany.id,
-        visitorIds: visitors.map(v => v.id),
+        companyId,
+        visitorIds,
       });
+
+      if (requestId !== safetyRequestId.current) return;
       setSafetyResult(result);
+      setSafetyResultKey(requestKey);
       
       setVisitors(prev => prev.map(v => {
         const check = result.visitors.find(vc => vc.visitorId === v.id);
         return check ? { ...v, safetyStatus: check } : v;
       }));
     } catch { /* ignore */ }
-    setSafetyLoading(false);
-  }
+    finally {
+      if (requestId === safetyRequestId.current) setSafetyLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCompany || !visitorIdsKey) {
+      safetyStartedKey.current = null;
+      setSafetyResult(null);
+      setSafetyResultKey(null);
+      setSafetyLoading(false);
+      return;
+    }
+
+    void runSafetyCheck(
+      selectedCompany.id,
+      visitorIdsKey.split(',').map(Number),
+      safetyKey,
+    );
+  }, [selectedCompany?.id, safetyKey, visitorIdsKey, runSafetyCheck]);
 
   async function handleCreateVisit() {
     if (!selectedCompany || !hostName || !purpose || !visitDate || visitors.length === 0) return;
@@ -210,7 +319,7 @@ export function NewVisitPage() {
 
   const canProceedStep1 = selectedCompany && hostName.trim() && purpose.trim() && visitDate;
   const canProceedStep2 = visitors.length > 0;
-  const canProceedStep3 = safetyResult && !safetyLoading;
+  const canProceedStep3 = hasCurrentSafetyResult && !safetyLoading;
 
   function getStatusBadge(status: string) {
     switch (status) {
@@ -228,7 +337,10 @@ export function NewVisitPage() {
   return (
     <Layout>
       <div className="max-w-2xl">
-        <h1 className="text-xl font-bold mb-4">New Visit</h1>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <h1 className="text-xl font-bold mb-0">New Visit</h1>
+          <DevFillButton onClick={fillExample} />
+        </div>
 
         <div className="flex gap-2 mb-6 text-sm">
           {['Details', 'Visitors', 'Safety Check', 'Review'].map((label, i) => (
@@ -303,12 +415,32 @@ export function NewVisitPage() {
             </div>
 
             <label className="block text-sm font-medium mb-1">Host / Person to Meet *</label>
-            <input
-              type="text"
-              value={hostName}
-              onChange={(e) => setHostName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-4"
-            />
+            <div className="relative mb-4">
+              <input
+                type="text"
+                value={hostQuery}
+                onChange={(e) => handleHostSearch(e.target.value)}
+                onFocus={() => hostQuery.length >= 2 && setHostOpen(true)}
+                onBlur={() => setTimeout(() => setHostOpen(false), 150)}
+                placeholder="Type employee name..."
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                autoComplete="off"
+              />
+              {hostOpen && hostResults.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow max-h-48 overflow-y-auto">
+                  {hostResults.map((employee, idx) => (
+                    <button
+                      key={`${employee.name}-${idx}`}
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); handleSelectHost(employee); }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                    >
+                      {employee.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <label className="block text-sm font-medium mb-1">Purpose *</label>
             <input
@@ -483,7 +615,7 @@ export function NewVisitPage() {
 
             {safetyLoading ? (
               <p className="text-sm text-gray-500">Checking safety status...</p>
-            ) : safetyResult ? (
+            ) : hasCurrentSafetyResult && safetyResult ? (
               <>
                 <div className="mb-4 p-3 bg-gray-50 rounded text-sm">
                   <p>{safetyResult.summary.totalVisitors} visitors · {safetyResult.summary.cleared} cleared · {safetyResult.summary.requiresInduction} require induction</p>
@@ -522,7 +654,18 @@ export function NewVisitPage() {
             ) : (
               <div className="flex justify-between">
                 <button type="button" onClick={() => setStep(2)} className="px-4 py-2 border text-sm rounded">Back</button>
-                <button type="button" onClick={runSafetyCheck} className="px-4 py-2 bg-blue-700 text-white text-sm rounded hover:bg-blue-800">Run Check</button>
+                <button
+                  type="button"
+                  onClick={() => selectedCompany && void runSafetyCheck(
+                    selectedCompany.id,
+                    visitors.map((visitor) => visitor.id),
+                    safetyKey,
+                    true,
+                  )}
+                  className="px-4 py-2 bg-blue-700 text-white text-sm rounded hover:bg-blue-800"
+                >
+                  Run Check
+                </button>
               </div>
             )}
           </div>

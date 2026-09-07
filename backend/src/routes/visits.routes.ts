@@ -1,6 +1,6 @@
 import { type Request, type Response, type NextFunction } from 'express';
 import { AppError } from '../middleware/errorHandler';
-import { listVisits, getVisitById, createVisit, safetyCheck, checkVisitorDuplicate, checkInVisit, checkOutVisit, getActiveVisits, getDashboardStats } from '../services/visits.service';
+import { listVisits, getVisitById, createVisit, safetyCheck, checkVisitorDuplicate, checkInVisit, checkOutVisit, getActiveVisits, getDashboardStats, deleteVisit } from '../services/visits.service';
 import { type AuthenticatedRequest } from '../middleware/authenticate';
 
 export async function list(
@@ -86,7 +86,7 @@ export async function create(
     }
 
     const visit = await createVisit(
-      { companyId, hostName, purpose, visitDate, visitorIds },
+      { companyId, hostName, purpose, visitDate, visitorIds, ipAddress: req.ip },
       req.user!.userId
     );
 
@@ -158,7 +158,7 @@ export async function checkIn(
       throw new AppError('Invalid visit ID', 400);
     }
 
-    const visit = await checkInVisit(id);
+    const visit = await checkInVisit(id, req.user!.userId, req.ip);
     res.json(visit);
   } catch (error) {
     next(error);
@@ -176,7 +176,7 @@ export async function checkOut(
       throw new AppError('Invalid visit ID', 400);
     }
 
-    const visit = await checkOutVisit(id, req.user!.userId);
+    const visit = await checkOutVisit(id, req.user!.userId, req.ip);
     res.json(visit);
   } catch (error) {
     next(error);
@@ -219,6 +219,22 @@ export async function dashboard(
   try {
     const stats = await getDashboardStats();
     res.json(stats);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function remove(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) throw new AppError('Invalid visit ID', 400);
+    const deleted = await deleteVisit(id);
+    if (!deleted) throw new AppError('Visit not found', 404);
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

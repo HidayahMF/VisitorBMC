@@ -52,11 +52,11 @@ export async function listCompanies(params: {
   const conditions: string[] = [];
 
   if (params.q) {
-    conditions.push('CompanyName LIKE @q');
+    conditions.push('c.CompanyName LIKE @q');
   }
 
   if (params.active !== undefined) {
-    conditions.push('IsActive = @active');
+    conditions.push('c.IsActive = @active');
   }
 
   if (conditions.length > 0) {
@@ -68,7 +68,7 @@ export async function listCompanies(params: {
     .input('q', sql.NVarChar, params.q ? `%${params.q}%` : '%')
     .input('active', sql.Bit, params.active !== undefined ? (params.active ? 1 : 0) : null)
     .query<{ total: number }>(`
-      SELECT COUNT(*) AS total FROM Companies ${whereClause}`);
+       SELECT COUNT(*) AS total FROM vms.Companies c ${whereClause}`);
   const total = countResult.recordset[0].total;
 
   const dataResult = await pool
@@ -78,9 +78,9 @@ export async function listCompanies(params: {
     .input('limit', sql.Int, limit)
     .input('offset', sql.Int, offset)
     .query(`
-      SELECT Id, CompanyName, IsActive, CreatedAt, UpdatedAt
-      FROM Companies ${whereClause}
-      ORDER BY Id
+       SELECT c.Id, c.CompanyName, c.IsActive, c.CreatedAt, c.UpdatedAt
+       FROM vms.Companies c ${whereClause}
+       ORDER BY c.Id
       OFFSET @offset ROWS
       FETCH NEXT @limit ROWS ONLY`);
 
@@ -100,7 +100,7 @@ export async function getCompanyById(id: number): Promise<ICompany | null> {
   const result = await pool
     .request()
     .input('id', sql.Int, id)
-    .query('SELECT Id, CompanyName, IsActive, CreatedAt, UpdatedAt FROM Companies WHERE Id = @id');
+    .query('SELECT c.Id, c.CompanyName, c.IsActive, c.CreatedAt, c.UpdatedAt FROM vms.Companies c WHERE c.Id = @id');
 
   const row = result.recordset[0];
   if (!row) return null;
@@ -120,7 +120,7 @@ export async function createCompany(name: string): Promise<ICompany> {
     .request()
     .input('normalizedName', sql.NVarChar, normalized)
     .query(`
-      SELECT Id FROM Companies
+      SELECT Id FROM vms.Companies
       WHERE LOWER(LTRIM(RTRIM(CompanyName))) = LOWER(@normalizedName)
     `);
 
@@ -132,7 +132,7 @@ export async function createCompany(name: string): Promise<ICompany> {
     .request()
     .input('companyName', sql.NVarChar(100), normalized)
     .query(`
-      INSERT INTO Companies (CompanyName)
+      INSERT INTO vms.Companies (CompanyName)
       OUTPUT INSERTED.Id, INSERTED.CompanyName, INSERTED.IsActive, INSERTED.CreatedAt, INSERTED.UpdatedAt
       VALUES (@companyName)
     `);
@@ -157,7 +157,7 @@ export async function updateCompany(
     .input('normalizedName', sql.NVarChar, normalized)
     .input('id', sql.Int, id)
     .query(`
-      SELECT Id FROM Companies
+      SELECT Id FROM vms.Companies
       WHERE LOWER(LTRIM(RTRIM(CompanyName))) = LOWER(@normalizedName)
       AND Id <> @id
     `);
@@ -171,7 +171,7 @@ export async function updateCompany(
     .input('id', sql.Int, id)
     .input('companyName', sql.NVarChar(100), normalized)
     .query(`
-      UPDATE Companies
+      UPDATE vms.Companies
       SET CompanyName = @companyName, UpdatedAt = SYSUTCDATETIME()
       OUTPUT INSERTED.Id, INSERTED.CompanyName, INSERTED.IsActive, INSERTED.CreatedAt, INSERTED.UpdatedAt
       WHERE Id = @id
@@ -193,7 +193,7 @@ export async function updateCompanyStatus(
     .input('id', sql.Int, id)
     .input('isActive', sql.Bit, isActive ? 1 : 0)
     .query(`
-      UPDATE Companies
+      UPDATE vms.Companies
       SET IsActive = @isActive, UpdatedAt = SYSUTCDATETIME()
       OUTPUT INSERTED.Id, INSERTED.CompanyName, INSERTED.IsActive, INSERTED.CreatedAt, INSERTED.UpdatedAt
       WHERE Id = @id
@@ -202,6 +202,51 @@ export async function updateCompanyStatus(
   const row = result.recordset[0];
   if (!row) return null;
   return toCompany(row);
+}
+
+export async function deleteCompany(id: number): Promise<boolean> {
+  const pool = await getDbConnection();
+  const transaction = new sql.Transaction(pool);
+  let started = false;
+
+  try {
+    await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+    started = true;
+
+    const exists = await transaction.request()
+      .input('id', sql.Int, id)
+      .query('SELECT Id FROM vms.Companies WITH (UPDLOCK, HOLDLOCK) WHERE Id = @id');
+    if (exists.recordset.length === 0) {
+      await transaction.rollback();
+      return false;
+    }
+
+    await transaction.request().input('companyId', sql.Int, id).query(`
+      DELETE FROM vms.VisitorInductionRecords
+      WHERE VisitId IN (SELECT Id FROM vms.Visits WHERE CompanyId = @companyId)
+         OR VisitorId IN (SELECT Id FROM vms.Visitors WHERE CompanyId = @companyId)
+    `);
+    await transaction.request().input('companyId', sql.Int, id).query(`
+      DELETE FROM vms.AuditLogs
+      WHERE (EntityType = 'Visit' AND EntityId IN (SELECT Id FROM vms.Visits WHERE CompanyId = @companyId))
+         OR (EntityType = 'Visitor' AND EntityId IN (SELECT Id FROM vms.Visitors WHERE CompanyId = @companyId))
+    `);
+    await transaction.request().input('companyId', sql.Int, id).query(`
+      DELETE FROM vms.VisitVisitors
+      WHERE VisitId IN (SELECT Id FROM vms.Visits WHERE CompanyId = @companyId)
+         OR VisitorId IN (SELECT Id FROM vms.Visitors WHERE CompanyId = @companyId)
+    `);
+    await transaction.request().input('companyId', sql.Int, id).query('DELETE FROM vms.Visits WHERE CompanyId = @companyId');
+    await transaction.request().input('companyId', sql.Int, id).query('DELETE FROM vms.Visitors WHERE CompanyId = @companyId');
+    await transaction.request().input('id', sql.Int, id).query('DELETE FROM vms.Companies WHERE Id = @id');
+
+    await transaction.commit();
+    started = false;
+    return true;
+  } catch (error) {
+    if (started) await transaction.rollback();
+    throw error;
+  }
 }
 
 export async function findCompaniesBySearch(
@@ -216,10 +261,10 @@ export async function findCompaniesBySearch(
     .input('q', sql.NVarChar, `%${query}%`)
     .input('limit', sql.Int, Math.min(MAX_PAGE_SIZE, Math.max(1, limit)))
     .query(`
-      SELECT TOP (@limit) Id, CompanyName, IsActive, CreatedAt, UpdatedAt
-      FROM Companies
-      WHERE CompanyName LIKE @q
-      ORDER BY CompanyName
+       SELECT TOP (@limit) c.Id, c.CompanyName, c.IsActive, c.CreatedAt, c.UpdatedAt
+       FROM vms.Companies c
+       WHERE c.CompanyName LIKE @q
+       ORDER BY c.CompanyName
     `);
 
   return result.recordset.map(toCompany);

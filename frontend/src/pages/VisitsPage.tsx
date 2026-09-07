@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listVisits } from '../api/visits.api';
+import { deleteVisit, listVisits } from '../api/visits.api';
 import { listCompanies } from '../api/companies.api';
 import { Layout } from '../components/Layout';
 import { type Visit, type VisitStatus } from '../types/visit';
 import { type Company } from '../types/company';
+import { useAuth } from '../context/AuthContext';
+import { DevDeleteButton } from '../components/DevFillButton';
 import { visitStatusLabel } from '../utils/visit-status';
 
 export function VisitsPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [visits, setVisits] = useState<Visit[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -60,6 +63,16 @@ export function VisitsPage() {
         return <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700">Cancelled</span>;
       default:
         return <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">{status}</span>;
+    }
+  }
+
+  async function handleDelete(visit: Visit) {
+    if (!confirm(`Hapus visit ${visit.VisitCode}?`)) return;
+    try {
+      await deleteVisit(visit.Id);
+      await load();
+    } catch {
+      alert('Failed to delete visit');
     }
   }
 
@@ -121,6 +134,7 @@ export function VisitsPage() {
                 <th className="py-2">Host</th>
                 <th className="py-2">Visitors</th>
                 <th className="py-2">Status</th>
+                {user?.role === 'ADMIN' && <th className="py-2 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -132,6 +146,7 @@ export function VisitsPage() {
                   <td className="py-2 text-gray-600">{v.HostName}</td>
                   <td className="py-2 text-gray-600">{v.VisitorCount ?? '-'}</td>
                   <td className="py-2">{getStatusBadge(v.Status)}</td>
+                  {user?.role === 'ADMIN' && <td className="py-2 text-right" onClick={(event) => event.stopPropagation()}><DevDeleteButton onClick={() => handleDelete(v)} /></td>}
                 </tr>
               ))}
             </tbody>

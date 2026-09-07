@@ -46,7 +46,7 @@ async function main() {
     const exists = await pool
       .request()
       .input('username', sql.VarChar(50), username)
-      .query('SELECT 1 FROM Users WHERE Username = @username');
+      .query('SELECT 1 FROM vms.Users WHERE Username = @username');
 
     if (exists.recordset.length > 0) {
       console.error(`Error: Username "${username}" already exists.`);
@@ -62,7 +62,7 @@ async function main() {
       .input('passwordHash', sql.VarChar(255), passwordHash)
       .input('role', sql.VarChar(20), 'ADMIN')
       .query(
-        `INSERT INTO Users (Name, Username, PasswordHash, Role)
+        `INSERT INTO vms.Users (Name, Username, PasswordHash, Role)
          VALUES (@name, @username, @passwordHash, @role)`,
       );
 

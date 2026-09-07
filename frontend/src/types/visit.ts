@@ -23,6 +23,7 @@ export interface Visit {
   CheckOutTime: string | null;
   Status: VisitStatus;
   CreatedBy: number;
+  CheckedInBy: number | null;
   CheckedOutBy: number | null;
   CreatedAt: string;
   UpdatedAt: string | null;

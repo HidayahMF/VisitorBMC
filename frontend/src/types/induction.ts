@@ -1,12 +1,13 @@
 export interface InductionContent {
   Id: number;
   SafetyInductionId: number;
-  ContentType: 'VIDEO' | 'IMAGE';
+  ContentType: 'VIDEO' | 'IMAGE' | 'PDF';
   ContentUrl: string;
   Title: string | null;
   Description: string | null;
   SortOrder: number;
   IsRequired: boolean;
+  IsActive: boolean;
   CreatedAt: string;
 }
 

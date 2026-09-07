@@ -6,6 +6,7 @@ import {
   createCompany,
   updateCompany,
   updateCompanyStatus,
+  deleteCompany,
   findCompaniesBySearch,
 } from '../services/companies.service';
 import { type AuthenticatedRequest } from '../middleware/authenticate';
@@ -143,6 +144,22 @@ export async function updateStatus(
     }
 
     res.json(company);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function remove(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) throw new AppError('Invalid company ID', 400);
+    const deleted = await deleteCompany(id);
+    if (!deleted) throw new AppError('Company not found', 404);
+    res.status(204).send();
   } catch (error) {
     next(error);
   }
