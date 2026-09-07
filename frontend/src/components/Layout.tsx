@@ -11,6 +11,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { to: '/companies', label: 'Companies' },
     { to: '/visitors', label: 'Visitors' },
     { to: '/visits', label: 'Visits' },
+    { to: '/visits/active', label: 'Inside' },
   ];
 
   return (
@@ -25,7 +26,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   key={link.to}
                   to={link.to}
                   className={`px-3 py-1.5 text-sm rounded ${
-                    location.pathname.startsWith(link.to)
+                    location.pathname === link.to || (link.to !== '/dashboard' && location.pathname.startsWith(link.to))
                       ? 'bg-blue-50 text-blue-700 font-medium'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}

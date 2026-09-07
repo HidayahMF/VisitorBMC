@@ -8,5 +8,5 @@ export function visitStatusLabel(status: VisitStatus): string {
     OUT: 'Checked Out',
     CANCELLED: 'Cancelled',
   };
-  return labels[status];
+  return labels[status] || status;
 }

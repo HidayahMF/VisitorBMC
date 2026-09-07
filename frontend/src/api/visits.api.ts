@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import { type VisitDetail, type VisitListResponse, type SafetyCheckSummary, type DuplicateCheckResult } from '../types/visit';
+import { type DashboardStats } from '../types/dashboard';
 
 export async function listVisits(params?: {
   q?: string;
@@ -55,4 +56,36 @@ export async function checkDuplicate(data: {
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+export async function checkInVisit(id: number): Promise<VisitDetail> {
+  return apiClient<VisitDetail>(`/visits/${id}/checkin`, {
+    method: 'PUT',
+  });
+}
+
+export async function checkOutVisit(id: number): Promise<VisitDetail> {
+  return apiClient<VisitDetail>(`/visits/${id}/checkout`, {
+    method: 'PUT',
+  });
+}
+
+export async function getActiveVisits(params?: {
+  q?: string;
+  companyId?: number;
+  date?: string;
+  page?: number;
+  limit?: number;
+}): Promise<VisitListResponse> {
+  const query = new URLSearchParams();
+  if (params?.q) query.set('q', params.q);
+  if (params?.companyId) query.set('companyId', String(params.companyId));
+  if (params?.date) query.set('date', params.date);
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.limit) query.set('limit', String(params.limit));
+  return apiClient<VisitListResponse>(`/visits/active?${query.toString()}`);
+}
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+  return apiClient<DashboardStats>('/visits/dashboard');
 }

@@ -11,6 +11,8 @@ import { EditVisitorPage } from './pages/EditVisitorPage';
 import { VisitsPage } from './pages/VisitsPage';
 import { VisitDetailPage } from './pages/VisitDetailPage';
 import { NewVisitPage } from './pages/NewVisitPage';
+import { ActiveVisitsPage } from './pages/ActiveVisitsPage';
+import { SafetyInductionPage } from './pages/SafetyInductionPage';
 import { ProtectedRoute, AdminOnlyRoute } from './components/ProtectedRoute';
 
 function App() {
@@ -18,6 +20,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/safety-induction/:visitId" element={<SafetyInductionPage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/companies" element={<CompaniesPage />} />
@@ -27,6 +30,7 @@ function App() {
           <Route path="/visitors/:id" element={<VisitorDetailPage />} />
           <Route path="/visits" element={<VisitsPage />} />
           <Route path="/visits/new" element={<NewVisitPage />} />
+          <Route path="/visits/active" element={<ActiveVisitsPage />} />
           <Route path="/visits/:id" element={<VisitDetailPage />} />
           <Route element={<AdminOnlyRoute />}>
             <Route path="/companies/:id/edit" element={<EditCompanyPage />} />

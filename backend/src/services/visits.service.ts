@@ -437,3 +437,140 @@ export async function safetyCheck(params: {
     visitors: check.visitors,
   };
 }
+
+export async function checkInVisit(visitId: number): Promise<IVisitDetail> {
+  const pool = await getDbConnection();
+
+  const visitResult = await pool
+    .request()
+    .input('id', sql.Int, visitId)
+    .query('SELECT Id, Status FROM Visits WHERE Id = @id');
+
+  if (visitResult.recordset.length === 0) {
+    throw new AppError('Visit not found', 404);
+  }
+
+  const visit = visitResult.recordset[0];
+  if (visit.Status !== 'READY_FOR_CHECKIN') {
+    throw new AppError('Visit is not ready for check-in. Current status: ' + visit.Status, 400);
+  }
+
+  await pool
+    .request()
+    .input('id', sql.Int, visitId)
+    .query(`
+      UPDATE Visits
+      SET Status = 'IN',
+          CheckInTime = SYSUTCDATETIME(),
+          UpdatedAt = SYSUTCDATETIME()
+      WHERE Id = @id AND Status = 'READY_FOR_CHECKIN'
+    `);
+
+  const detail = await getVisitById(visitId);
+  if (!detail) {
+    throw new AppError('Visit not found after check-in', 500);
+  }
+  return detail;
+}
+
+export async function checkOutVisit(visitId: number, checkedOutBy: number): Promise<IVisitDetail> {
+  const pool = await getDbConnection();
+
+  const visitResult = await pool
+    .request()
+    .input('id', sql.Int, visitId)
+    .query('SELECT Id, Status FROM Visits WHERE Id = @id');
+
+  if (visitResult.recordset.length === 0) {
+    throw new AppError('Visit not found', 404);
+  }
+
+  const visit = visitResult.recordset[0];
+  if (visit.Status !== 'IN') {
+    throw new AppError('Visit is not currently inside. Current status: ' + visit.Status, 400);
+  }
+
+  await pool
+    .request()
+    .input('id', sql.Int, visitId)
+    .input('checkedOutBy', sql.Int, checkedOutBy)
+    .query(`
+      UPDATE Visits
+      SET Status = 'OUT',
+          CheckOutTime = SYSUTCDATETIME(),
+          CheckedOutBy = @checkedOutBy,
+          UpdatedAt = SYSUTCDATETIME()
+      WHERE Id = @id AND Status = 'IN'
+    `);
+
+  const detail = await getVisitById(visitId);
+  if (!detail) {
+    throw new AppError('Visit not found after check-out', 500);
+  }
+  return detail;
+}
+
+export async function getActiveVisits(params: {
+  q?: string;
+  companyId?: number;
+  date?: string;
+  page?: number;
+  limit?: number;
+}): Promise<IPaginatedVisits> {
+  return listVisits({ ...params, status: 'IN' });
+}
+
+export async function getDashboardStats(): Promise<{
+  visitorsToday: number;
+  currentlyInside: number;
+  checkedOutToday: number;
+  inductionRequiredToday: number;
+}> {
+  const pool = await getDbConnection();
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const visitorsTodayResult = await pool
+    .request()
+    .input('today', sql.Date, today)
+    .query(`
+      SELECT COUNT(DISTINCT vv.VisitorId) AS total
+      FROM Visits v
+      INNER JOIN VisitVisitors vv ON v.Id = vv.VisitId
+      WHERE v.VisitDate = @today
+    `);
+
+  const currentlyInsideResult = await pool
+    .request()
+    .query(`
+      SELECT COUNT(DISTINCT vv.VisitorId) AS total
+      FROM Visits v
+      INNER JOIN VisitVisitors vv ON v.Id = vv.VisitId
+      WHERE v.Status = 'IN'
+    `);
+
+  const checkedOutTodayResult = await pool
+    .request()
+    .input('today', sql.Date, today)
+    .query(`
+      SELECT COUNT(*) AS total
+      FROM Visits
+      WHERE VisitDate = @today AND Status = 'OUT'
+    `);
+
+  const inductionRequiredResult = await pool
+    .request()
+    .input('today', sql.Date, today)
+    .query(`
+      SELECT COUNT(*) AS total
+      FROM Visits
+      WHERE VisitDate = @today AND Status = 'PENDING_INDUCTION'
+    `);
+
+  return {
+    visitorsToday: visitorsTodayResult.recordset[0].total || 0,
+    currentlyInside: currentlyInsideResult.recordset[0].total || 0,
+    checkedOutToday: checkedOutTodayResult.recordset[0].total || 0,
+    inductionRequiredToday: inductionRequiredResult.recordset[0].total || 0,
+  };
+}

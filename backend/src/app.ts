@@ -11,6 +11,7 @@ import { authorize } from './middleware/authorize';
 import * as companiesRoutes from './routes/companies.routes';
 import * as visitorsRoutes from './routes/visitors.routes';
 import * as visitsRoutes from './routes/visits.routes';
+import * as safetyInductionsRoutes from './routes/safety-inductions.routes';
 
 const app: Express = express();
 
@@ -52,10 +53,18 @@ app.put('/api/visitors/:id', authenticate, authorize('ADMIN'), visitorsRoutes.up
 app.patch('/api/visitors/:id/status', authenticate, authorize('ADMIN'), visitorsRoutes.updateStatus);
 
 app.get('/api/visits', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.list);
+app.get('/api/visits/active', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.active);
+app.get('/api/visits/dashboard', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.dashboard);
 app.get('/api/visits/:id', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.getById);
 app.post('/api/visits', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.create);
 app.post('/api/visits/safety-check', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.safetyCheckHandler);
 app.post('/api/visits/check-duplicate', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.checkDuplicate);
+app.put('/api/visits/:id/checkin', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.checkIn);
+app.put('/api/visits/:id/checkout', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.checkOut);
+
+app.get('/api/safety-inductions/active/contents', authenticate, safetyInductionsRoutes.getActiveContents);
+app.get('/api/safety-inductions/visitor/:visitorId/history', authenticate, safetyInductionsRoutes.getVisitorHistory);
+app.post('/api/safety-inductions/complete', authenticate, safetyInductionsRoutes.complete);
 
 app.use(notFound);
 app.use(errorHandler);

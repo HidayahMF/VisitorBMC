@@ -1,6 +1,6 @@
 import { type Request, type Response, type NextFunction } from 'express';
 import { AppError } from '../middleware/errorHandler';
-import { listVisits, getVisitById, createVisit, safetyCheck, checkVisitorDuplicate } from '../services/visits.service';
+import { listVisits, getVisitById, createVisit, safetyCheck, checkVisitorDuplicate, checkInVisit, checkOutVisit, getActiveVisits, getDashboardStats } from '../services/visits.service';
 import { type AuthenticatedRequest } from '../middleware/authenticate';
 
 export async function list(
@@ -142,6 +142,83 @@ export async function checkDuplicate(
 
     const result = await checkVisitorDuplicate({ visitorName, companyId, phoneNumber });
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function checkIn(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) {
+      throw new AppError('Invalid visit ID', 400);
+    }
+
+    const visit = await checkInVisit(id);
+    res.json(visit);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function checkOut(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) {
+      throw new AppError('Invalid visit ID', 400);
+    }
+
+    const visit = await checkOutVisit(id, req.user!.userId);
+    res.json(visit);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function active(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { q, companyId, date, page, limit } = req.query as {
+      q?: string;
+      companyId?: string;
+      date?: string;
+      page?: string;
+      limit?: string;
+    };
+
+    const result = await getActiveVisits({
+      q,
+      companyId: companyId ? parseInt(companyId, 10) : undefined,
+      date,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function dashboard(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const stats = await getDashboardStats();
+    res.json(stats);
   } catch (error) {
     next(error);
   }

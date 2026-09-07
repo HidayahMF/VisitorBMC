@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getVisit } from '../api/visits.api';
+import { getVisit, checkInVisit, checkOutVisit } from '../api/visits.api';
 import { Layout } from '../components/Layout';
 import { type VisitDetail } from '../types/visit';
 
@@ -9,6 +9,7 @@ export function VisitDetailPage() {
   const navigate = useNavigate();
   const [visit, setVisit] = useState<VisitDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     load();
@@ -23,6 +24,32 @@ export function VisitDetailPage() {
       navigate('/visits');
     }
     setLoading(false);
+  }
+
+  async function handleCheckIn() {
+    if (!id) return;
+    if (!confirm('Check in this visit?')) return;
+    setActionLoading(true);
+    try {
+      const updated = await checkInVisit(Number(id));
+      setVisit(updated);
+    } catch {
+      alert('Failed to check in. Make sure all visitors are cleared.');
+    }
+    setActionLoading(false);
+  }
+
+  async function handleCheckOut() {
+    if (!id) return;
+    if (!confirm('Check out this visit?')) return;
+    setActionLoading(true);
+    try {
+      const updated = await checkOutVisit(Number(id));
+      setVisit(updated);
+    } catch {
+      alert('Failed to check out.');
+    }
+    setActionLoading(false);
   }
 
   function getStatusBadge(status: string) {
@@ -84,6 +111,21 @@ export function VisitDetailPage() {
             </div>
           </div>
 
+          {visit.CheckInTime && (
+            <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+              <div>
+                <p className="text-gray-500 text-xs">Check-In Time</p>
+                <p className="font-medium">{new Date(visit.CheckInTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
+              </div>
+              {visit.CheckOutTime && (
+                <div>
+                  <p className="text-gray-500 text-xs">Check-Out Time</p>
+                  <p className="font-medium">{new Date(visit.CheckOutTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mb-4">
             <p className="text-gray-500 text-xs mb-1">Status</p>
             {getStatusBadge(visit.Status)}
@@ -100,6 +142,47 @@ export function VisitDetailPage() {
               All visitors cleared. Ready for check-in.
             </div>
           )}
+
+          {visit.Status === 'IN' && (
+            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 mb-4">
+              Visit is currently inside the facility.
+            </div>
+          )}
+
+          {visit.Status === 'OUT' && (
+            <div className="bg-gray-50 border border-gray-200 rounded p-3 text-sm text-gray-600 mb-4">
+              This visit has been completed.
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            {visit.Status === 'PENDING_INDUCTION' && (
+              <button
+                onClick={() => navigate(`/safety-induction/${visit.Id}?visitorId=${visit.Visitors.find(v => v.SafetyStatus !== 'VALID')?.Id || ''}&total=${visit.SafetySummary.requiresInduction}&completed=${visit.SafetySummary.cleared}`)}
+                className="text-sm px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+              >
+                Start Safety Induction
+              </button>
+            )}
+            {visit.Status === 'READY_FOR_CHECKIN' && (
+              <button
+                onClick={handleCheckIn}
+                disabled={actionLoading}
+                className="text-sm px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 disabled:opacity-40"
+              >
+                {actionLoading ? 'Processing...' : 'Check In'}
+              </button>
+            )}
+            {visit.Status === 'IN' && (
+              <button
+                onClick={handleCheckOut}
+                disabled={actionLoading}
+                className="text-sm px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-40"
+              >
+                {actionLoading ? 'Processing...' : 'Check Out'}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="bg-white border rounded p-6">
@@ -123,6 +206,14 @@ export function VisitDetailPage() {
                     </span>
                   )}
                   {getStatusBadge(v.SafetyStatus)}
+                  {v.SafetyStatus !== 'VALID' && visit.Status === 'PENDING_INDUCTION' && (
+                    <button
+                      onClick={() => navigate(`/safety-induction/${visit.Id}?visitorId=${v.Id}&total=${visit.SafetySummary.requiresInduction}&completed=${visit.SafetySummary.cleared}`)}
+                      className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded hover:bg-amber-200"
+                    >
+                      Induct
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
