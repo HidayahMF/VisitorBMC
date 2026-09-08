@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 import path from 'path';
-dotenv.config();
+
+// Resolve the backend environment file independently of the directory used to start npm.
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const parseSameSite = (val: string | undefined): 'lax' | 'strict' | 'none' => {
   if (val === 'strict') return 'strict';

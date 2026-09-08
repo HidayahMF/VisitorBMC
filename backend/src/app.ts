@@ -25,7 +25,7 @@ const publicInductionLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 120,
 app.use(helmet());
 app.use(
   cors({
-    origin: env.FRONTEND_URL,
+    origin: env.FRONTEND_URL.split(',').map((origin) => origin.trim()).filter(Boolean),
     credentials: true,
   }),
 );

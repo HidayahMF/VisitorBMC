@@ -1,0 +1,56 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_SERVER: ${DB_SERVER}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_DATABASE: ${DB_DATABASE:-BMC}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_ENCRYPT: ${DB_ENCRYPT:-false}
+      DB_TRUST_SERVER_CERTIFICATE: ${DB_TRUST_SERVER_CERTIFICATE:-true}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-86400}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
+      FRONTEND_URL: ${FRONTEND_URL}
+      UPLOAD_DIR: /app/uploads
+      UPLOAD_MAX_SIZE_MB: ${UPLOAD_MAX_SIZE_MB:-512}
+      UPLOAD_ALLOWED_TYPES: ${UPLOAD_ALLOWED_TYPES:-mp4,mov,webm,jpg,jpeg,png,gif,pdf}
+      HRIS_EMPLOYEE_TABLE: ${HRIS_EMPLOYEE_TABLE:-dbo.hris_Employee}
+      HRIS_EMPLOYEE_NAME_COL: ${HRIS_EMPLOYEE_NAME_COL:-Name}
+      HRIS_EMPLOYEE_NIP_COL: ${HRIS_EMPLOYEE_NIP_COL:-NIP}
+      HRIS_EMPLOYEE_BIRTHDATE_COL: ${HRIS_EMPLOYEE_BIRTHDATE_COL:-BirthDate}
+      HRIS_SEARCH_MIN_CHARS: ${HRIS_SEARCH_MIN_CHARS:-2}
+    volumes:
+      - visitorbmc_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  visitorbmc_uploads:
