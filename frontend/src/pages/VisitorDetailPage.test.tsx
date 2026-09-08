@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { VisitorDetailPage } from './VisitorDetailPage';
 import { AuthProvider } from '../context/AuthContext';
+import { LanguageProvider } from '../i18n/LanguageContext';
 
 const { mockGetVisitor, mockGetHistory, mockGetInductionHistory } = vi.hoisted(() => ({
   mockGetVisitor: vi.fn(),
@@ -67,13 +68,13 @@ const inductionHistory = [
 
 function renderPage() {
   return render(
-    <AuthProvider>
+    <LanguageProvider><AuthProvider>
       <MemoryRouter initialEntries={['/visitors/1']}>
         <Routes>
           <Route path="/visitors/:id" element={<VisitorDetailPage />} />
         </Routes>
       </MemoryRouter>
-    </AuthProvider>,
+    </AuthProvider></LanguageProvider>,
   );
 }
 
@@ -88,20 +89,20 @@ describe('VisitorDetailPage', () => {
   it('shows visitor profile', async () => {
     renderPage();
     expect(await screen.findByText('Andi Saputra')).toBeInTheDocument();
-    expect(screen.getByText('VST-000001')).toBeInTheDocument();
-    expect(screen.getByText('PT ABC')).toBeInTheDocument();
+    expect(screen.getAllByText('VST-000001')).toHaveLength(2);
+    expect(screen.getAllByText('PT ABC')).toHaveLength(2);
   });
 
   it('shows visit history entries', async () => {
     renderPage();
     expect(await screen.findByText('VIS-20260907-002')).toBeInTheDocument();
-    expect(screen.getByText('OUT')).toBeInTheDocument();
+    expect(screen.getByText('Sudah Keluar')).toBeInTheDocument();
   });
 
   it('shows induction history with validity', async () => {
     renderPage();
     expect(await screen.findByText('Safety Induction V1')).toBeInTheDocument();
-    expect(screen.getByText('Acknowledged')).toBeInTheDocument();
+    expect(screen.getByText('Disetujui')).toBeInTheDocument();
     expect(mockGetInductionHistory).toHaveBeenCalledWith(1);
   });
 
@@ -109,7 +110,7 @@ describe('VisitorDetailPage', () => {
     mockGetHistory.mockResolvedValue([]);
     mockGetInductionHistory.mockResolvedValue([]);
     renderPage();
-    expect(await screen.findByText('No visits recorded.')).toBeInTheDocument();
-    expect(screen.getByText('No safety induction completed.')).toBeInTheDocument();
+    expect(await screen.findByText('Belum ada riwayat kunjungan.')).toBeInTheDocument();
+    expect(screen.getByText('Belum ada riwayat safety induction.')).toBeInTheDocument();
   });
 });

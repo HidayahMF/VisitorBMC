@@ -14,8 +14,13 @@ import * as visitorsRoutes from './routes/visitors.routes';
 import * as visitsRoutes from './routes/visits.routes';
 import * as safetyInductionsRoutes from './routes/safety-inductions.routes';
 import * as hrisRoutes from './routes/hris.routes';
+import * as auditRoutes from './routes/audit.routes';
+import * as reportsRoutes from './routes/reports.routes';
+import * as usersRoutes from './routes/users.routes';
+import rateLimit from 'express-rate-limit';
 
 const app: Express = express();
+const publicInductionLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false, message: { message: 'Terlalu banyak permintaan induction. Coba lagi nanti.' } });
 
 app.use(helmet());
 app.use(
@@ -62,15 +67,26 @@ app.put('/api/visits/:id/checkin', authenticate, authorize('ADMIN', 'SECURITY'),
 app.put('/api/visits/:id/checkout', authenticate, authorize('ADMIN', 'SECURITY'), visitsRoutes.checkOut);
 app.delete('/api/visits/:id', authenticate, authorize('ADMIN'), developmentOnly, visitsRoutes.remove);
 
-app.get('/api/safety-inductions/active/contents', authenticate, safetyInductionsRoutes.getActiveContents);
+app.get('/api/safety-inductions/active/contents', safetyInductionsRoutes.getActiveContents);
+app.post('/api/safety-inductions/access/:visitId', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.issueToken);
+app.get('/api/safety-inductions/token/:token/workflow', publicInductionLimiter, safetyInductionsRoutes.tokenWorkflow);
 app.get('/api/safety-inductions/manage/contents', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.managedContents);
+app.get('/api/safety-inductions/manage/config', authenticate, authorize('ADMIN'), safetyInductionsRoutes.config);
+app.patch('/api/safety-inductions/manage/config', authenticate, authorize('ADMIN'), safetyInductionsRoutes.updateConfig);
 app.post('/api/safety-inductions/manage/contents', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.uploadContent);
 app.patch('/api/safety-inductions/manage/contents/:id/status', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.updateContentStatus);
 app.delete('/api/safety-inductions/manage/contents/:id', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.removeContent);
 app.get('/api/safety-inductions/visitor/:visitorId/history', authenticate, safetyInductionsRoutes.getVisitorHistory);
-app.post('/api/safety-inductions/complete', authenticate, safetyInductionsRoutes.complete);
+app.post('/api/safety-inductions/complete', publicInductionLimiter, safetyInductionsRoutes.complete);
 
 app.get('/api/hris/employees', authenticate, authorize('ADMIN', 'SECURITY'), hrisRoutes.search);
+app.get('/api/audit-logs', authenticate, authorize('ADMIN'), auditRoutes.list);
+app.get('/api/reports/visits', authenticate, authorize('ADMIN', 'SECURITY'), reportsRoutes.visits);
+app.get('/api/reports/visitors', authenticate, authorize('ADMIN', 'SECURITY'), reportsRoutes.visitors);
+app.get('/api/reports/inductions', authenticate, authorize('ADMIN', 'SECURITY'), reportsRoutes.inductions);
+app.get('/api/users', authenticate, authorize('ADMIN'), usersRoutes.list);
+app.post('/api/users', authenticate, authorize('ADMIN'), usersRoutes.create);
+app.patch('/api/users/:id', authenticate, authorize('ADMIN'), usersRoutes.update);
 
 app.use(notFound);
 app.use(errorHandler);

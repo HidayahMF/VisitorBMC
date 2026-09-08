@@ -7,6 +7,19 @@ export class ApiError extends Error {
   }
 }
 
+import { translate, type Language } from '../i18n/translations';
+
+export function userFacingError(error: unknown, language: Language = 'id'): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return translate(language, 'errors.session');
+    if (error.status === 403) return translate(language, 'errors.access');
+    if (error.status === 404) return translate(language, 'errors.notFound');
+    if (error.status && error.status >= 500) return translate(language, 'errors.server');
+    return error.message || translate(language, 'errors.request');
+  }
+  return translate(language, 'errors.network');
+}
+
 export async function apiClient<T = unknown>(
   path: string,
   options: RequestInit = {},

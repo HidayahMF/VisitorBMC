@@ -138,6 +138,18 @@ describe('getDashboardStats', () => {
     expect(result.inductionRequiredToday).toBe(2);
   });
 
+  it('uses visitor participation rows consistently for every KPI', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ recordset: [{ total: 3 }] })
+      .mockResolvedValueOnce({ recordset: [{ total: 3 }] })
+      .mockResolvedValueOnce({ recordset: [{ total: 3 }] })
+      .mockResolvedValueOnce({ recordset: [{ total: 2 }] });
+    const result = await getDashboardStats();
+    expect(result).toEqual({ visitorsToday: 3, currentlyInside: 3, checkedOutToday: 3, inductionRequiredToday: 2 });
+    expect(mockQuery.mock.calls[2][0]).toContain('vms.VisitVisitors');
+    expect(mockQuery.mock.calls[3][0]).toContain('vms.VisitVisitors');
+  });
+
   it('defaults to 0 when recordsets are empty', async () => {
     mockQuery
       .mockResolvedValueOnce({ recordset: [{}] })

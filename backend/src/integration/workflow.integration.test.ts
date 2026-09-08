@@ -54,6 +54,9 @@ vi.mock('../services/safety-inductions.service', () => ({
   getActiveInductionWithContents: vi.fn(),
   getInductionHistory: vi.fn(),
   completeInduction: vi.fn(),
+  completeInductionByToken: vi.fn(),
+  getPublicInductionWorkflowByToken: vi.fn(),
+  issuePublicInductionToken: vi.fn(),
 }));
 
 import app from '../app';
@@ -180,6 +183,23 @@ describe('full workflow (HTTP integration, mocked services)', () => {
     expect(status).toBe(401);
   });
 
+  it('issues a public induction token only to authenticated operators', async () => {
+    expect((await makeRequest('/api/safety-inductions/access/5', { method: 'POST' })).status).toBe(401);
+    vi.mocked(inductionsService.issuePublicInductionToken).mockResolvedValue({ token: 'x'.repeat(43), expiresAt: new Date('2026-09-07T04:00:00Z') });
+    const login = await makeRequest('/api/auth/login', { method: 'POST', body: { username: 'admin', password: 'secret123' } });
+    const cookie = login.setCookie?.split(';')[0] as string;
+    const response = await makeRequest('/api/safety-inductions/access/5', { method: 'POST', cookie });
+    expect(response.status).toBe(200);
+    expect(response.body.token).toHaveLength(43);
+  });
+
+  it('does not expose workflow data for an invalid token', async () => {
+    vi.mocked(inductionsService.getPublicInductionWorkflowByToken).mockRejectedValue(new Error('invalid token'));
+    const response = await makeRequest('/api/safety-inductions/token/not-a-token/workflow');
+    expect(response.status).toBe(500);
+    expect(JSON.stringify(response.body)).not.toContain('VisitCode');
+  });
+
   it('logs in, authenticates via cookie, and runs the full visit lifecycle', async () => {
     // 1. authentication
     const login = await makeRequest('/api/auth/login', {
@@ -223,10 +243,11 @@ describe('full workflow (HTTP integration, mocked services)', () => {
     );
 
     // 7. complete required induction
-    const inductionRes = await makeRequest('/api/safety-inductions/complete', { method: 'POST', cookie, body: { visitorId: 12, visitId: 5, acknowledged: true } });
-    expect(inductionRes.status).toBe(201);
+    vi.mocked(inductionsService.completeInductionByToken).mockResolvedValue({ result: { recordId: 99, completedAt: new Date(), acknowledgedAt: new Date(), validUntil: new Date('2027-03-07T02:00:00') }, workflow: {} as never });
+    const inductionRes = await makeRequest('/api/safety-inductions/complete', { method: 'POST', cookie, body: { token: 'a'.repeat(43), visitorId: 12, acknowledged: true } });
+    expect(inductionRes.status).toBe(200);
     expect(inductionRes.body.recordId).toBe(99);
-    expect(String(inductionRes.body.validUntil)).toContain('2027-03-07T02:00:00');
+    expect(String(inductionRes.body.validUntil)).toContain('2027-03-06T19:00:00');
 
     // 8. check-in (arg #2 = authenticated user id)
     const checkInRes = await makeRequest('/api/visits/5/checkin', { method: 'PUT', cookie });

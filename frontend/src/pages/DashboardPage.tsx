@@ -1,47 +1,65 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../i18n/LanguageContext';
 import { Layout } from '../components/Layout';
 import { Icon, type IconName } from '../components/Icon';
 import { getDashboardStats } from '../api/visits.api';
+import { listVisits } from '../api/visits.api';
 import { type DashboardStats } from '../types/dashboard';
-
-const metrics: { key: keyof DashboardStats; label: string; icon: IconName; tone: string }[] = [
-  { key: 'visitorsToday', label: 'Visitors Today', icon: 'users', tone: 'metric-blue' },
-  { key: 'currentlyInside', label: 'Currently Inside', icon: 'inside', tone: 'metric-cyan' },
-  { key: 'checkedOutToday', label: 'Checked Out Today', icon: 'check', tone: 'metric-slate' },
-  { key: 'inductionRequiredToday', label: 'Induction Required', icon: 'alert', tone: 'metric-amber' },
-];
-
-const actions: { to: string; title: string; description: string; icon: IconName; primary?: boolean }[] = [
-  { to: '/visits/new', title: 'New Visit', description: 'Register a new visitor arrival', icon: 'plus', primary: true },
-  { to: '/visits/active', title: 'Currently Inside', description: 'See who is on site now', icon: 'inside' },
-  { to: '/visits', title: 'Visit History', description: 'Review previous visits', icon: 'calendar' },
-  { to: '/companies', title: 'Companies', description: 'Manage registered companies', icon: 'building' },
-];
+import { ErrorState } from '../components/AsyncState';
+import { type Visit } from '../types/visit';
+import { userFacingError } from '../api/client';
 
 export function DashboardPage() {
-  const { user } = useAuth();
+  const { language, t, formatDate } = useLanguage();
+  const metrics: { key: keyof DashboardStats; label: string; icon: IconName; tone: string }[] = [
+    { key: 'visitorsToday', label: t('dashboard.metrics.visitorsToday'), icon: 'users', tone: 'metric-blue' },
+    { key: 'currentlyInside', label: t('dashboard.metrics.currentlyInside'), icon: 'inside', tone: 'metric-cyan' },
+    { key: 'checkedOutToday', label: t('dashboard.metrics.checkedOutToday'), icon: 'check', tone: 'metric-slate' },
+    { key: 'inductionRequiredToday', label: t('dashboard.metrics.inductionRequiredToday'), icon: 'alert', tone: 'metric-amber' },
+  ];
+  const actions: { to: string; title: string; description: string; icon: IconName; primary?: boolean }[] = [
+    { to: '/visits/new', title: t('dashboard.newVisit'), description: t('dashboard.newVisitDescription'), icon: 'plus', primary: true },
+    { to: '/visits/active', title: t('dashboard.inside'), description: t('dashboard.insideDescription'), icon: 'inside' },
+    { to: '/visits', title: t('dashboard.history'), description: t('dashboard.historyDescription'), icon: 'calendar' },
+    { to: '/companies', title: t('dashboard.companies'), description: t('dashboard.companiesDescription'), icon: 'building' },
+  ];
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [activity, setActivity] = useState<Visit[]>([]);
+  const [activityError, setActivityError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    getDashboardStats().then(setStats).catch(() => undefined).finally(() => setLoading(false));
+    void load();
   }, []);
+
+  async function load() {
+    setLoading(true);
+    setError('');
+    setActivityError('');
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const [dashboardStats, visits] = await Promise.all([getDashboardStats(), listVisits({ date: today, limit: 8 })]);
+      setStats(dashboardStats);
+      setActivity(visits.data);
+    } catch (cause) { setError(userFacingError(cause, language)); setActivityError(userFacingError(cause, language)); }
+    finally { setLoading(false); }
+  }
 
   return (
     <Layout>
       <section className="dashboard-intro">
         <div>
-          <p className="dashboard-kicker">Operations overview</p>
-          <h1 className="!mb-0">Dashboard</h1>
-          <p className="dashboard-subtitle">Ringkasan aktivitas visitor dan kondisi area hari ini.</p>
+          <p className="dashboard-kicker">{t('dashboard.eyebrow')}</p>
+          <h1 className="!mb-0">{t('dashboard.title')}</h1>
+          <p className="dashboard-subtitle">{t('dashboard.subtitle')}</p>
         </div>
-        <div className="dashboard-date"><Icon name="clock" size={16} /> Selamat datang, {user?.name}</div>
+        <div className="dashboard-date"><Icon name="clock" size={16} /> {formatDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
       </section>
 
-      {loading ? (
-        <div className="bg-white border rounded p-6 text-gray-500">Loading dashboard data...</div>
+      {error ? <ErrorState message={error} onRetry={load} /> : loading ? (
+          <div className="bg-white border rounded p-6 text-gray-500">{t('common.loading')}</div>
       ) : stats ? (
         <div className="metric-grid">
           {metrics.map((metric) => (
@@ -49,6 +67,7 @@ export function DashboardPage() {
               <div className="metric-icon"><Icon name={metric.icon} size={18} /></div>
               <p className="metric-label">{metric.label}</p>
               <p className="metric-value">{stats[metric.key]}</p>
+              <p className="metric-unit">{metric.key === 'inductionRequiredToday' ? t('dashboard.visitors') : t('dashboard.people')}</p>
             </article>
           ))}
         </div>
@@ -56,8 +75,8 @@ export function DashboardPage() {
 
       <section>
         <div className="dashboard-section-head">
-          <h2>Quick actions</h2>
-          <span>Common workflows</span>
+          <h2>{t('dashboard.quickActions')}</h2>
+          <span>{t('dashboard.quickAccess')}</span>
         </div>
         <div className="quick-actions">
           {actions.map((action) => (
@@ -69,6 +88,14 @@ export function DashboardPage() {
           ))}
         </div>
       </section>
+
+      <div className="dashboard-operations-grid">
+        <section className="dashboard-operation-section">
+          <div className="dashboard-section-head"><div><h2>{t('dashboard.activity')}</h2><span>{t('dashboard.activityDescription')}</span></div><Link to="/visits" className="dashboard-section-link">{t('dashboard.view')}</Link></div>
+          {activityError ? <ErrorState message={activityError} onRetry={load} /> : activity.length === 0 ? <div className="dashboard-calm-state">{t('dashboard.noActivity')}</div> : <div className="activity-list">{activity.map(visit => <Link key={visit.Id} to={`/visits/${visit.Id}`} className="activity-row"><div className="activity-main"><strong>{visit.VisitCode}</strong><span>{visit.CompanyName}</span></div><div className="activity-meta"><span>{visit.VisitorCount ?? '-'} {t('dashboard.visitors')}</span><span>{t('dashboard.host')}: {visit.HostName}</span></div><span className="activity-status">{visit.Status === 'OUT' ? t('status.out') : visit.Status === 'IN' ? t('status.inside') : visit.Status === 'READY_FOR_CHECKIN' ? t('status.ready') : t('status.required')}</span></Link>)}</div>}
+        </section>
+        <section className="dashboard-operation-section attention-section"><div className="dashboard-section-head"><div><h2>{t('dashboard.attention')}</h2></div></div>{stats && stats.inductionRequiredToday > 0 ? <Link to="/visits" className="attention-item"><span className="attention-marker" aria-hidden="true" /><span><strong>{t('dashboard.metrics.inductionRequiredToday')}</strong><small>{stats.inductionRequiredToday} {t('dashboard.visitors')}</small></span><span className="dashboard-section-link">{t('dashboard.view')}</span></Link> : <div className="dashboard-calm-state">{t('dashboard.noAttention')}</div>}</section>
+      </div>
     </Layout>
   );
 }

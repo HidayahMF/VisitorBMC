@@ -1,135 +1,24 @@
 import { useEffect, useState } from 'react';
 import { Layout } from '../components/Layout';
 import { DevFillButton } from '../components/DevFillButton';
-import {
-  deleteInductionContent,
-  listManagedInductionContents,
-  updateInductionContentStatus,
-  uploadInductionContent,
-} from '../api/safety-inductions.api';
+import { deleteInductionContent, listManagedInductionContents, updateInductionContentStatus, uploadInductionContent } from '../api/safety-inductions.api';
 import { type InductionContent } from '../types/induction';
+import { confirmAction } from '../components/ConfirmationHost';
+import { ErrorState, EmptyState } from '../components/AsyncState';
+import { useLanguage } from '../i18n/LanguageContext';
+import { userFacingError } from '../api/client';
 
 export function SafetyInductionManagementPage() {
-  const [contents, setContents] = useState<InductionContent[]>([]);
-  const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
+  const { language, t } = useLanguage(); const [contents, setContents] = useState<InductionContent[]>([]); const [file, setFile] = useState<File | null>(null); const [title, setTitle] = useState(''); const [description, setDescription] = useState(''); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [actionId, setActionId] = useState<number | null>(null);
   useEffect(() => { void load(); }, []);
-
-  async function load() {
-    setLoading(true);
-    try {
-      setContents(await listManagedInductionContents());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat konten');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleUpload(event: React.FormEvent) {
-    event.preventDefault();
-    if (!file) return;
-    setSaving(true);
-    setError('');
-    try {
-      await uploadInductionContent({ file, title, description });
-      setFile(null);
-      setTitle('');
-      setDescription('');
-      const input = document.getElementById('content-file') as HTMLInputElement | null;
-      if (input) input.value = '';
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal mengupload konten');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleToggle(content: InductionContent) {
-    try {
-      await updateInductionContentStatus(content.Id, !content.IsActive);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal mengubah status konten');
-    }
-  }
-
-  async function handleDelete(content: InductionContent) {
-    if (!confirm(`Hapus konten "${content.Title || content.ContentUrl}"?`)) return;
-    try {
-      await deleteInductionContent(content.Id);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal menghapus konten');
-    }
-  }
-
-  return (
-    <Layout>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <p className="dashboard-kicker">Configuration</p>
-          <h1 className="text-xl font-bold mb-1">Safety Induction Content</h1>
-          <p className="text-sm text-gray-500">Pilih konten yang akan dilihat visitor.</p>
-        </div>
-        <DevFillButton onClick={() => { setTitle('Safety Content Development'); setDescription('Development content'); }} label="Isi contoh" />
-      </div>
-
-      {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm mb-4">{error}</div>}
-
-      <form onSubmit={handleUpload} className="bg-white border rounded p-5 mb-5">
-        <h2 className="font-medium mb-4">Upload Content</h2>
-        <div className="grid gap-3 md:grid-cols-3">
-          <input
-            id="content-file"
-            type="file"
-            accept="video/*,image/*,.pdf"
-            onChange={(event) => setFile(event.target.files?.[0] || null)}
-            className="text-sm"
-            required
-          />
-          <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Judul konten" className="px-3 py-2 border rounded text-sm" />
-          <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Deskripsi (opsional)" className="px-3 py-2 border rounded text-sm" />
-        </div>
-        <button type="submit" disabled={!file || saving} className="mt-4 bg-blue-700 text-white text-sm px-4 py-2 rounded disabled:opacity-40">
-          {saving ? 'Uploading...' : 'Upload Content'}
-        </button>
-        <p className="text-xs text-gray-400 mt-2">Video besar diputar dengan streaming. Konten baru nonaktif sampai dipilih.</p>
-      </form>
-
-      {loading ? <p className="text-sm text-gray-500">Loading...</p> : (
-        <div className="space-y-3">
-          {contents.map((content) => (
-            <div key={content.Id} className="bg-white border rounded p-4 flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <strong className="text-sm truncate">{content.Title || content.ContentUrl}</strong>
-                  <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">{content.ContentType}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded ${content.IsActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {content.IsActive ? 'Shown' : 'Hidden'}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1 truncate">{content.Description || content.ContentUrl}</p>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <button type="button" onClick={() => void handleToggle(content)} className="text-xs px-3 py-1 border rounded hover:bg-gray-50">
-                  {content.IsActive ? 'Hide' : 'Show'}
-                </button>
-                <button type="button" onClick={() => void handleDelete(content)} className="text-xs px-3 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50">
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-          {!contents.length && <p className="text-sm text-gray-400">Belum ada konten.</p>}
-        </div>
-      )}
-    </Layout>
-  );
+  async function load() { setLoading(true); setError(''); try { setContents(await listManagedInductionContents()); } catch (cause) { setError(userFacingError(cause, language)); } finally { setLoading(false); } }
+  async function handleUpload(event: React.FormEvent) { event.preventDefault(); if (!file || saving) return; setSaving(true); setError(''); try { await uploadInductionContent({ file, title, description }); setFile(null); setTitle(''); setDescription(''); const input = document.getElementById('content-file') as HTMLInputElement | null; if (input) input.value = ''; await load(); } catch (cause) { setError(userFacingError(cause, language)); } finally { setSaving(false); } }
+  async function handleToggle(content: InductionContent) { if (actionId !== null) return; setActionId(content.Id); setError(''); try { await updateInductionContentStatus(content.Id, !content.IsActive); await load(); } catch (cause) { setError(userFacingError(cause, language)); } finally { setActionId(null); } }
+  async function handleDelete(content: InductionContent) { const name = content.Title || content.ContentUrl; if (!await confirmAction(`${t('safetyContent.deleteConfirm')}\n"${name}" ${t('safetyContent.deleteWarning')}`)) return; setActionId(content.Id); setError(''); try { await deleteInductionContent(content.Id); await load(); } catch (cause) { setError(userFacingError(cause, language)); } finally { setActionId(null); } }
+  const contentType = (type: InductionContent['ContentType']) => type === 'VIDEO' ? t('safetyContent.video') : type === 'IMAGE' ? t('safetyContent.image') : t('safetyContent.pdf');
+  return <Layout><div className="safety-content-page"><header className="page-header-compact"><div><p className="page-eyebrow">{t('safetyContent.eyebrow')}</p><h1>{t('safetyContent.title')}</h1><p>{t('safetyContent.description')}</p></div><DevFillButton onClick={() => { setTitle(t('safetyContent.sampleTitle')); setDescription(t('safetyContent.sampleDescription')); }} label={t('safetyContent.sample')} /></header>
+    {error && <ErrorState message={error} onRetry={load} />}
+    <form onSubmit={handleUpload} className="safety-upload-form"><h2>{t('safetyContent.upload')}</h2><div className="safety-upload-grid"><div className="file-picker-field"><span className="form-field-label">{t('safetyContent.file')}</span><label htmlFor="content-file" className="file-picker-button">{t('safetyContent.chooseFile')}</label><input id="content-file" type="file" onChange={event => setFile(event.target.files?.[0] || null)} required disabled={saving} /><span className="selected-file" aria-live="polite">{file?.name || t('safetyContent.noFile')}</span></div><div><label htmlFor="content-title" className="form-field-label">{t('safetyContent.titleLabel')}</label><input id="content-title" value={title} onChange={event => setTitle(event.target.value)} disabled={saving} /></div><div><label htmlFor="content-description" className="form-field-label">{t('safetyContent.descriptionLabel')} ({t('safetyContent.optional')})</label><textarea id="content-description" value={description} onChange={event => setDescription(event.target.value)} rows={2} disabled={saving} /></div></div><button type="submit" disabled={!file || saving} className="primary-button">{saving ? t('safetyContent.uploading') : t('safetyContent.uploadButton')}</button><p className="form-helper">{t('safetyContent.helper')}</p></form>
+    {loading ? <p className="page-loading" role="status">{t('safetyContent.loading')}</p> : contents.length === 0 ? <EmptyState message={t('safetyContent.noContent')} /> : <div className="safety-content-list">{contents.map(content => <article key={content.Id} className="safety-content-card"><div className="safety-content-heading"><div><h2>{content.Title || content.ContentUrl}</h2><div className="safety-content-tags"><span className="content-type-badge">{contentType(content.ContentType)}</span><span className={`status-badge ${content.IsActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>{content.IsActive ? t('safetyContent.visible') : t('safetyContent.hidden')}</span></div></div><div className="safety-content-actions"><button type="button" className="secondary-button" disabled={actionId === content.Id} onClick={() => void handleToggle(content)}>{content.IsActive ? t('safetyContent.hide') : t('safetyContent.show')}</button><button type="button" className="danger-button" disabled={actionId === content.Id} onClick={() => void handleDelete(content)}>{t('common.delete')}</button></div></div>{content.Description && <p className="safety-content-description">{content.Description}</p>}</article>)}</div>}
+  </div></Layout>;
 }

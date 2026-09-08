@@ -42,9 +42,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await apiClient('/auth/logout', { method: 'POST' });
-    setUser(null);
-    setIsAuthenticated(false);
+    try {
+      await apiClient('/auth/logout', { method: 'POST' });
+    } finally {
+      setUser(null);
+      setIsAuthenticated(false);
+    }
   };
 
   useEffect(() => {

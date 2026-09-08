@@ -33,11 +33,11 @@ beforeEach(() => {
 describe('searchEmployees', () => {
   it('returns employee names from dbo.hris_Employee using a parameterized LIKE + RTRIM', async () => {
     mockQuery.mockResolvedValueOnce({
-      recordset: [{ name: 'AANG KUNAEFI' }, { name: 'RINA' }],
+       recordset: [{ name: 'AANG KUNAEFI', username: '001', isActive: 1 }, { name: 'RINA', username: '002', isActive: 1 }],
     });
 
     const result = await searchEmployees('aang');
-    expect(result).toEqual([{ name: 'AANG KUNAEFI' }, { name: 'RINA' }]);
+    expect(result).toEqual([{ name: 'AANG KUNAEFI', username: '001', isActive: true }, { name: 'RINA', username: '002', isActive: true }]);
 
     const sqlText = mockQuery.mock.calls[0][0] as string;
     expect(sqlText).toContain('FROM dbo.hris_Employee');

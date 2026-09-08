@@ -2,6 +2,8 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { getDbConnection, sql } from '../config/database';
+import { logAudit } from './audit-log.service';
+import { AppError } from '../middleware/errorHandler';
 
 export interface IUser {
   Id: number;
@@ -18,6 +20,45 @@ export interface ISafeUser {
   name: string;
   username: string;
   role: string;
+}
+
+export interface IManagedUser { id: number; username: string; name: string; role: string; isActive: boolean; employeeActive: boolean; }
+
+export async function listManagedUsers(): Promise<IManagedUser[]> {
+  const pool = await getDbConnection();
+  const result = await pool.request().query(`
+    SELECT u.Id, RTRIM(u.Username) AS Username, RTRIM(e.[${env.HRIS_EMPLOYEE_NAME_COL}]) AS Name,
+           u.Role, u.IsActive AS UserIsActive, e.is_Active AS EmployeeIsActive
+    FROM vms.Users u INNER JOIN ${env.HRIS_EMPLOYEE_TABLE} e
+      ON RTRIM(e.[${env.HRIS_EMPLOYEE_NIP_COL}]) = RTRIM(u.Username)
+    ORDER BY e.[${env.HRIS_EMPLOYEE_NAME_COL}]
+  `);
+  return result.recordset.map((row) => ({ id: row.Id, username: row.Username, name: row.Name, role: row.Role, isActive: !!row.UserIsActive, employeeActive: isActiveValue(row.EmployeeIsActive) }));
+}
+
+export async function addManagedUser(username: string, role: 'ADMIN' | 'SECURITY', actorId?: number, ipAddress?: string): Promise<IManagedUser> {
+  const pool = await getDbConnection();
+  const employee = await pool.request().input('username', sql.VarChar(50), username.trim()).query(`SELECT TOP 1 RTRIM([${env.HRIS_EMPLOYEE_NIP_COL}]) AS Username, RTRIM([${env.HRIS_EMPLOYEE_NAME_COL}]) AS Name, is_Active AS EmployeeActive FROM ${env.HRIS_EMPLOYEE_TABLE} WHERE RTRIM([${env.HRIS_EMPLOYEE_NIP_COL}])=@username`);
+  const row = employee.recordset[0];
+  if (!row) throw new AppError('Employee not found', 404);
+  if (!isActiveValue(row.EmployeeActive)) throw new AppError('Employee is inactive in HRIS', 400);
+  const existing = await pool.request().input('username', sql.VarChar(50), row.Username).query('SELECT Id, IsActive, Role FROM vms.Users WHERE Username=@username');
+  if (existing.recordset[0]) throw new AppError('Employee already has VisitorBMC access', 409);
+  const created = await pool.request().input('name', sql.NVarChar(100), row.Name).input('username', sql.VarChar(50), row.Username).input('role', sql.VarChar(20), role).input('passwordHash', sql.VarChar(255), '__HRIS_BIRTHDATE_LOGIN__').query('INSERT INTO vms.Users (Name, Username, PasswordHash, Role, IsActive) OUTPUT INSERTED.Id, INSERTED.Username, INSERTED.Name, INSERTED.Role, INSERTED.IsActive VALUES (@name,@username,@passwordHash,@role,1)');
+  const user = created.recordset[0];
+  if (actorId) await logAudit(pool, { userId: actorId, action: 'USER_ACCESS_GRANTED' as never, entityType: 'User', entityId: user.Id, details: JSON.stringify({ role, username: user.Username }), ipAddress: ipAddress ?? null });
+  return { id: user.Id, username: user.Username, name: user.Name, role: user.Role, isActive: !!user.IsActive, employeeActive: true };
+}
+
+export async function updateManagedUser(id: number, changes: { role?: 'ADMIN' | 'SECURITY'; isActive?: boolean }, actorId: number, ipAddress?: string): Promise<IManagedUser | null> {
+  if (id === actorId && changes.isActive === false) throw new AppError('You cannot deactivate your own account', 400);
+  const pool = await getDbConnection(); const current = await pool.request().input('id', sql.Int, id).query('SELECT Id, Role, IsActive FROM vms.Users WHERE Id=@id');
+  if (!current.recordset[0]) return null;
+  if (changes.isActive === false && current.recordset[0].Role === 'ADMIN') { const count = await pool.request().query("SELECT COUNT(*) AS total FROM vms.Users WHERE Role='ADMIN' AND IsActive=1"); if (count.recordset[0].total <= 1) throw new AppError('At least one active administrator must remain', 400); }
+  const role = changes.role ?? current.recordset[0].Role; const active = changes.isActive ?? !!current.recordset[0].IsActive;
+  await pool.request().input('id', sql.Int, id).input('role', sql.VarChar(20), role).input('active', sql.Bit, active ? 1 : 0).query('UPDATE vms.Users SET Role=@role, IsActive=@active, UpdatedAt=SYSUTCDATETIME() WHERE Id=@id');
+  await logAudit(pool, { userId: actorId, action: changes.role ? 'USER_ROLE_UPDATED' as never : 'USER_ACCESS_UPDATED' as never, entityType: 'User', entityId: id, details: JSON.stringify({ role, isActive: active }), ipAddress: ipAddress ?? null });
+  return (await listManagedUsers()).find((user) => user.id === id) ?? null;
 }
 
 export interface IJwtPayload {

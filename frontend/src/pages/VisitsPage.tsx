@@ -1,17 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { deleteVisit, listVisits } from '../api/visits.api';
+import { listVisits } from '../api/visits.api';
 import { listCompanies } from '../api/companies.api';
 import { Layout } from '../components/Layout';
 import { type Visit, type VisitStatus } from '../types/visit';
 import { type Company } from '../types/company';
-import { useAuth } from '../context/AuthContext';
-import { DevDeleteButton } from '../components/DevFillButton';
+import { ErrorState, EmptyState } from '../components/AsyncState';
+import { useLanguage } from '../i18n/LanguageContext';
+import { userFacingError } from '../api/client';
 import { visitStatusLabel } from '../utils/visit-status';
 
 export function VisitsPage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
+  const { language, t, formatDate } = useLanguage();
   const [visits, setVisits] = useState<Visit[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [search, setSearch] = useState('');
@@ -21,146 +22,43 @@ export function VisitsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => { loadCompanies(); }, []);
-  useEffect(() => { load(); }, [search, filterCompany, filterStatus, filterDate, page]);
+  useEffect(() => { void loadCompanies(); }, []);
+  useEffect(() => { void load(); }, [search, filterCompany, filterStatus, filterDate, page]);
 
   async function loadCompanies() {
-    try {
-      const res = await listCompanies({ active: true, limit: 100 });
-      setCompanies(res.data);
-    } catch { /* ignore */ }
+    try { setCompanies((await listCompanies({ active: true, limit: 100 })).data); }
+    catch (cause) { setError(userFacingError(cause, language)); }
   }
-
   async function load() {
-    setLoading(true);
+    setLoading(true); setError('');
     try {
-      const res = await listVisits({
-        q: search || undefined,
-        companyId: filterCompany,
-        status: filterStatus || undefined,
-        date: filterDate || undefined,
-        page,
-        limit: 20,
-      });
-      setVisits(res.data);
-      setTotal(res.pagination.total);
-    } catch { /* ignore */ }
-    setLoading(false);
+      const result = await listVisits({ q: search || undefined, companyId: filterCompany, status: filterStatus || undefined, date: filterDate || undefined, page, limit: 20 });
+      setVisits(result.data); setTotal(result.pagination.total);
+    } catch (cause) { setError(userFacingError(cause, language)); }
+    finally { setLoading(false); }
   }
+  const hasFilters = Boolean(search.trim() || filterCompany !== undefined || filterStatus || filterDate);
+  const reset = () => { setSearch(''); setFilterCompany(undefined); setFilterStatus(''); setFilterDate(''); setPage(1); };
+  const countLabel = total === 1 ? t('visits.visit') : t('visits.visits');
+  const status = (value: VisitStatus) => <span className={`status-badge ${value === 'PENDING_INDUCTION' ? 'bg-amber-100 text-amber-700' : value === 'OUT' ? 'bg-gray-100 text-gray-700' : value === 'CANCELLED' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>{visitStatusLabel(value, language)}</span>;
+  const emptyMessage = hasFilters ? t('visits.noSearchResults') : t('visits.noVisits');
 
-  function getStatusBadge(status: string) {
-    switch (status) {
-      case 'PENDING_INDUCTION':
-        return <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">{visitStatusLabel(status as VisitStatus)}</span>;
-      case 'READY_FOR_CHECKIN':
-        return <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">{visitStatusLabel(status as VisitStatus)}</span>;
-      case 'IN':
-        return <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">{visitStatusLabel(status as VisitStatus)}</span>;
-      case 'OUT':
-        return <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">{visitStatusLabel(status as VisitStatus)}</span>;
-      case 'CANCELLED':
-        return <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700">Cancelled</span>;
-      default:
-        return <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">{status}</span>;
-    }
-  }
-
-  async function handleDelete(visit: Visit) {
-    if (!confirm(`Hapus visit ${visit.VisitCode}?`)) return;
-    try {
-      await deleteVisit(visit.Id);
-      await load();
-    } catch {
-      alert('Failed to delete visit');
-    }
-  }
-
-  return (
-    <Layout>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold">Visits</h1>
-        <button onClick={() => navigate('/visits/new')} className="bg-blue-700 text-white text-sm px-4 py-2 rounded hover:bg-blue-800">
-          + New Visit
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-2 mb-4">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          placeholder="Search visit code or host..."
-          className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded text-sm"
-        />
-        <select
-          value={filterCompany ?? ''}
-          onChange={(e) => { setFilterCompany(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded text-sm"
-        >
-          <option value="">All Companies</option>
-          {companies.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
-        </select>
-        <select
-          value={filterStatus}
-          onChange={(e) => { setFilterStatus(e.target.value as VisitStatus | ''); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded text-sm"
-        >
-          <option value="">All Status</option>
-          <option value="PENDING_INDUCTION">Pending Induction</option>
-          <option value="READY_FOR_CHECKIN">Ready for Check-In</option>
-          <option value="IN">Inside</option>
-          <option value="OUT">Checked Out</option>
-        </select>
-        <input
-          type="date"
-          value={filterDate}
-          onChange={(e) => { setFilterDate(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded text-sm"
-        />
-      </div>
-
-      {loading ? (
-        <p className="text-sm text-gray-500">Loading...</p>
-      ) : (
-        <>
-          <p className="text-xs text-gray-400 mb-2">{total} visit{total !== 1 ? 's' : ''}</p>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-gray-500">
-                <th className="py-2">Visit Code</th>
-                <th className="py-2">Date</th>
-                <th className="py-2">Company</th>
-                <th className="py-2">Host</th>
-                <th className="py-2">Visitors</th>
-                <th className="py-2">Status</th>
-                {user?.role === 'ADMIN' && <th className="py-2 text-right">Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {visits.map(v => (
-                <tr key={v.Id} className="border-b cursor-pointer hover:bg-gray-50" onClick={() => navigate(`/visits/${v.Id}`)}>
-                  <td className="py-2 font-mono text-xs">{v.VisitCode}</td>
-                  <td className="py-2">{new Date(v.VisitDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</td>
-                  <td className="py-2 text-gray-600">{v.CompanyName}</td>
-                  <td className="py-2 text-gray-600">{v.HostName}</td>
-                  <td className="py-2 text-gray-600">{v.VisitorCount ?? '-'}</td>
-                  <td className="py-2">{getStatusBadge(v.Status)}</td>
-                  {user?.role === 'ADMIN' && <td className="py-2 text-right" onClick={(event) => event.stopPropagation()}><DevDeleteButton onClick={() => handleDelete(v)} /></td>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {visits.length === 0 && <p className="text-sm text-gray-400 mt-2">No visits found.</p>}
-          {total > 20 && (
-            <div className="flex gap-2 mt-4">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="text-sm px-3 py-1 border rounded disabled:opacity-40">Prev</button>
-              <span className="text-sm text-gray-500 py-1">Page {page}</span>
-              <button disabled={page * 20 >= total} onClick={() => setPage(p => p + 1)} className="text-sm px-3 py-1 border rounded disabled:opacity-40">Next</button>
-            </div>
-          )}
-        </>
-      )}
-    </Layout>
-  );
+  return <Layout><div className="visits-page">
+    <header className="page-header-compact"><div><p className="page-eyebrow">{t('navigation.visits')}</p><h1>{t('visits.title')}</h1><p>{t('visits.description')}</p></div><button type="button" onClick={() => navigate('/visits/new')} className="primary-button">+ {t('visits.add')}</button></header>
+    <div className="visits-toolbar">
+      <div className="visit-filter-field visit-search-field"><label htmlFor="visits-search">{t('visits.search')}</label><input id="visits-search" type="search" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder={t('visits.searchPlaceholder')} /></div>
+      <div className="visit-filter-field"><label htmlFor="visits-company">{t('visits.company')}</label><select id="visits-company" value={filterCompany ?? ''} onChange={e => { setFilterCompany(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}><option value="">{t('visits.allCompanies')}</option>{companies.map(company => <option key={company.id} value={company.id}>{company.companyName}</option>)}</select></div>
+      <div className="visit-filter-field"><label htmlFor="visits-status">{t('visits.status')}</label><select id="visits-status" value={filterStatus} onChange={e => { setFilterStatus(e.target.value as VisitStatus | ''); setPage(1); }}><option value="">{t('visits.allStatuses')}</option>{(['PENDING_INDUCTION', 'READY_FOR_CHECKIN', 'IN', 'OUT', 'CANCELLED'] as VisitStatus[]).map(value => <option key={value} value={value}>{visitStatusLabel(value, language)}</option>)}</select></div>
+      <div className="visit-filter-field"><label htmlFor="visits-date">{t('visits.date')}</label><input id="visits-date" type="date" value={filterDate} onChange={e => { setFilterDate(e.target.value); setPage(1); }} /></div>
+      {hasFilters && <button type="button" className="reset-filter-button" onClick={reset}>{t('visits.reset')}</button>}
+    </div>
+    {error ? <ErrorState message={error} onRetry={load} /> : loading ? <p className="page-loading" role="status">{t('common.loading')}</p> : <>
+      <p className="result-count visits-result-count">{total} {countLabel}</p>
+      {!visits.length ? <div className="visitor-empty"><EmptyState message={emptyMessage} />{hasFilters && <button type="button" className="reset-filter-button" onClick={reset}>{t('visits.reset')}</button>}</div> : <>
+        <div className="visits-table-wrap"><table className="visits-table"><thead><tr><th>{t('visits.code')}</th><th>{t('visits.date')}</th><th>{t('visits.company')}</th><th>{t('visits.host')}</th><th>{t('visits.visitors')}</th><th>{t('visits.status')}</th><th>{t('visits.action')}</th></tr></thead><tbody>{visits.map(visit => <tr key={visit.Id}><td><button type="button" className="visit-code-link" onClick={() => navigate(`/visits/${visit.Id}`)}>{visit.VisitCode}</button></td><td>{formatDate(visit.VisitDate)}</td><td className="table-primary-text">{visit.CompanyName}</td><td>{visit.HostName}</td><td>{visit.VisitorCount ?? '—'} {t('visits.visitors')}</td><td>{status(visit.Status)}</td><td><button type="button" className="row-action" onClick={() => navigate(`/visits/${visit.Id}`)}>{t('visits.view')}</button></td></tr>)}</tbody></table></div>
+        <div className="mobile-record-list visits-mobile-list">{visits.map(visit => <article key={visit.Id} className="mobile-record-card"><div className="mobile-record-heading"><button type="button" className="visit-code-link" onClick={() => navigate(`/visits/${visit.Id}`)}>{visit.VisitCode}</button>{status(visit.Status)}</div><dl className="mobile-record-details"><div><dt>{t('visits.date')}</dt><dd>{formatDate(visit.VisitDate)}</dd></div><div><dt>{t('visits.company')}</dt><dd>{visit.CompanyName}</dd></div><div><dt>{t('visits.host')}</dt><dd>{visit.HostName}</dd></div><div><dt>{t('visits.visitors')}</dt><dd>{visit.VisitorCount ?? '—'} {t('visits.visitors')}</dd></div></dl><button type="button" className="row-action" onClick={() => navigate(`/visits/${visit.Id}`)}>{t('visits.view')}</button></article>)}</div>
+      </>}
+    </>}</div></Layout>;
 }

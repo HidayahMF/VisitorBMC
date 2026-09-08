@@ -2314,4 +2314,10 @@ Internal use only — PT BMC.
 > **Document Version:** 1.2
 > **Last Updated:** 07 September 2026
 > **Author:** AI Assistant (generated based on requirement document)
-> **Status:** IN DEVELOPMENT — Phases 1-8 complete; P1 hardening (ValidUntil fix, CheckedInBy, AuditLogs, visitor history, date filter) done; Phase 9 (full audit) ongoing; Phase 10 (Docker/Portainer) NOT started
+> **Status:** IN DEVELOPMENT — public induction token hardening, reliability, accessibility, audit log, reports, HRIS-mapped user access, induction configuration, and badge printing are implemented. A browser-executable visual QA checklist is available at `docs/ui-visual-qa-checklist.md`; browser/manual database verification, QR/pre-registration, and Docker/Portainer deployment remain pending.
+
+> **Deployment note:** The public induction token flow requires migration `backend/database/009_public_induction_access.sql`. If the backend reports `Invalid column name 'InductionAccessTokenExpiresAt'` or `InductionAccessTokenHash`, run that migration against the VisitorBMC database before using the induction button. The backend does not run DDL automatically at startup.
+
+> **UI note:** Visitor badge preview/printing uses a fixed CR80 identity-card layout (`85.6mm × 53.98mm`), the existing BMC logo asset, and bilingual labels from the frontend language preference. Browser print-preview verification remains a manual deployment step.
+
+> **Dashboard note:** Security dashboard KPIs count visitor participation rows consistently: Visitors Today, Currently Inside, Checked Out Today, and Induction Required are people/visitor counts, not visit-record counts. Recent Activity is loaded from today's existing visit list.

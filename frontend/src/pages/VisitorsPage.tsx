@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { deleteVisitor, listVisitors } from '../api/visitors.api';
 import { listCompanies } from '../api/companies.api';
@@ -7,105 +7,26 @@ import { type Company } from '../types/company';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { DevDeleteButton } from '../components/DevFillButton';
+import { ErrorState, EmptyState } from '../components/AsyncState';
+import { confirmAction } from '../components/ConfirmationHost';
+import { useLanguage } from '../i18n/LanguageContext';
+import { userFacingError } from '../api/client';
+
+function VisitorStatus({ active, label }: { active: boolean; label: string }) { return <span className={`status-badge ${active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{label}</span>; }
 
 export function VisitorsPage() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [visitors, setVisitors] = useState<Visitor[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [search, setSearch] = useState('');
-  const [filterCompany, setFilterCompany] = useState<number | undefined>();
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => { loadCompanies(); }, []);
-  useEffect(() => { load(); }, [search, filterCompany, page]);
-
-  async function loadCompanies() {
-    try {
-      const res = await listCompanies({ active: true, limit: 100 });
-      setCompanies(res.data);
-    } catch { /* ignore */ }
-  }
-
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await listVisitors({ q: search || undefined, companyId: filterCompany, page, limit: 20 });
-      setVisitors(res.data);
-      setTotal(res.pagination.total);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }
-
-  async function handleDelete(visitor: Visitor) {
-    if (!confirm(`Hapus visitor "${visitor.visitorName}"?`)) return;
-    try {
-      await deleteVisitor(visitor.id);
-      await load();
-    } catch {
-      alert('Failed to delete visitor');
-    }
-  }
-
-  return (
-    <Layout>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold">Visitors</h1>
-        <button onClick={() => navigate('/visitors/new')} className="bg-blue-700 text-white text-sm px-4 py-2 rounded hover:bg-blue-800">
-          + Add Visitor
-        </button>
-      </div>
-
-      <div className="flex gap-2 mb-4">
-        <input type="text" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          placeholder="Search name or code..." className="flex-1 max-w-sm px-3 py-2 border border-gray-300 rounded text-sm" />
-        <select value={filterCompany ?? ''} onChange={(e) => { setFilterCompany(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded text-sm">
-          <option value="">All Companies</option>
-          {companies.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
-        </select>
-      </div>
-
-      {loading ? <p className="text-sm text-gray-500">Loading...</p> : (
-        <>
-          <p className="text-xs text-gray-400 mb-2">{total} visitor{total !== 1 ? 's' : ''}</p>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-gray-500">
-                <th className="py-2">Code</th><th className="py-2">Name</th><th className="py-2">Company</th><th className="py-2">Phone</th><th className="py-2">Status</th>{user?.role === 'ADMIN' && <th className="py-2 text-right">Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {visitors.map(v => (
-                <tr key={v.id} className="border-b">
-                  <td className="py-2 font-mono text-xs">{v.visitorCode}</td>
-                  <td className="py-2">
-                    <button onClick={() => navigate(`/visitors/${v.id}`)} className="text-blue-700 hover:underline">{v.visitorName}</button>
-                  </td>
-                  {user?.role === 'ADMIN' && <td className="py-2 text-right"><DevDeleteButton onClick={() => handleDelete(v)} /></td>}
-                  <td className="py-2 text-gray-600">{v.company?.companyName}</td>
-                  <td className="py-2 text-gray-500">{v.phoneNumber || '-'}</td>
-                  <td className="py-2">
-                    <span className={`text-xs px-2 py-0.5 rounded ${v.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {v.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {visitors.length === 0 && <p className="text-sm text-gray-400 mt-2">No visitors found.</p>}
-          {total > 20 && (
-            <div className="flex gap-2 mt-4">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="text-sm px-3 py-1 border rounded disabled:opacity-40">Prev</button>
-              <span className="text-sm text-gray-500 py-1">Page {page}</span>
-              <button disabled={page * 20 >= total} onClick={() => setPage(p => p + 1)} className="text-sm px-3 py-1 border rounded disabled:opacity-40">Next</button>
-            </div>
-          )}
-        </>
-      )}
-    </Layout>
-  );
+  const { user } = useAuth(); const navigate = useNavigate(); const { language, t } = useLanguage();
+  const [visitors, setVisitors] = useState<Visitor[]>([]); const [companies, setCompanies] = useState<Company[]>([]); const [search, setSearch] = useState(''); const [filterCompany, setFilterCompany] = useState<number | undefined>(); const [page, setPage] = useState(1); const [total, setTotal] = useState(0); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
+  useEffect(() => { void loadCompanies(); }, []); useEffect(() => { void load(); }, [search, filterCompany, page]);
+  async function loadCompanies() { try { const result = await listCompanies({ active: true, limit: 100 }); setCompanies(result.data); } catch (cause) { setError(userFacingError(cause, language)); } }
+  async function load() { setLoading(true); setError(''); try { const result = await listVisitors({ q: search || undefined, companyId: filterCompany, page, limit: 20 }); setVisitors(result.data); setTotal(result.pagination.total); } catch (cause) { setError(userFacingError(cause, language)); } finally { setLoading(false); } }
+  async function handleDelete(visitor: Visitor) { if (!await confirmAction(`${t('common.delete')} "${visitor.visitorName}"?`)) return; try { await deleteVisitor(visitor.id); await load(); } catch (cause) { setError(userFacingError(cause, language)); } }
+  const hasFilters = Boolean(search.trim() || filterCompany !== undefined); const countLabel = total === 1 ? t('visitors.visitorCount') : t('visitors.visitorsCount');
+  const reset = () => { setSearch(''); setFilterCompany(undefined); setPage(1); };
+  const emptyMessage = hasFilters ? `${t('visitors.noSearchResults')} "${search.trim() || t('visitors.company')}".` : t('visitors.noVisitors');
+  return <Layout><div className="visitors-page">
+    <header className="page-header-compact"><div><p className="page-eyebrow">{t('navigation.visitors')}</p><h1>{t('visitors.title')}</h1><p>{t('visitors.description')}</p></div><button type="button" onClick={() => navigate('/visitors/new')} className="primary-button">+ {t('visitors.add')}</button></header>
+    <div className="visitors-toolbar"><div className="visitor-filter-field"><label htmlFor="visitor-search">{t('visitors.search')}</label><input id="visitor-search" type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder={t('visitors.searchPlaceholder')} /></div><div className="visitor-filter-field"><label htmlFor="visitor-company-filter">{t('visitors.company')}</label><select id="visitor-company-filter" value={filterCompany ?? ''} onChange={event => { setFilterCompany(event.target.value ? Number(event.target.value) : undefined); setPage(1); }}><option value="">{t('visitors.allCompanies')}</option>{companies.map(company => <option key={company.id} value={company.id}>{company.companyName}</option>)}</select></div>{hasFilters && <button type="button" onClick={reset} className="reset-filter-button">{t('visitors.reset')}</button>}</div>
+    {error ? <ErrorState message={error} onRetry={load} /> : loading ? <p className="page-loading">{t('common.loading')}</p> : <>{<p className="result-count visitors-result-count">{total} {countLabel}</p>}{visitors.length === 0 ? <div className="visitor-empty"><EmptyState message={emptyMessage} />{!hasFilters && <><p>{t('visitors.emptyHint')}</p><button type="button" onClick={() => navigate('/visitors/new')} className="primary-button">+ {t('visitors.add')}</button></>}</div> : <><div className="visitors-table-wrap"><table className="visitors-table"><colgroup><col className="visitor-code-col" /><col className="visitor-name-col" /><col className="visitor-company-col" /><col className="visitor-phone-col" /><col className="visitor-status-col" /><col className="visitor-action-col" /></colgroup><thead><tr><th>{t('visitors.code')}</th><th>{t('visitors.name')}</th><th>{t('visitors.company')}</th><th>{t('visitors.phone')}</th><th>{t('visitors.status')}</th><th className="text-right">{t('visitors.action')}</th></tr></thead><tbody>{visitors.map(visitor => <tr key={visitor.id}><td className="font-mono text-xs">{visitor.visitorCode}</td><td><span className="visitor-name">{visitor.visitorName}</span></td><td>{visitor.company?.companyName || '—'}</td><td>{visitor.phoneNumber || '—'}</td><td><VisitorStatus active={visitor.isActive} label={visitor.isActive ? t('visitors.active') : t('visitors.inactive')} /></td><td className="text-right"><button type="button" onClick={() => navigate(`/visitors/${visitor.id}`)} className="row-action">{t('visitors.view')}</button>{user?.role === 'ADMIN' && <DevDeleteButton onClick={() => handleDelete(visitor)} />}</td></tr>)}</tbody></table></div><div className="mobile-record-list visitors-mobile-list">{visitors.map(visitor => <article key={visitor.id} className="mobile-record-card"><div className="mobile-record-heading"><div><strong className="visitor-name">{visitor.visitorName}</strong><p className="font-mono text-xs text-gray-500">{visitor.visitorCode}</p></div><VisitorStatus active={visitor.isActive} label={visitor.isActive ? t('visitors.active') : t('visitors.inactive')} /></div><dl className="mobile-record-details"><div><dt>{t('visitors.company')}</dt><dd>{visitor.company?.companyName || '—'}</dd></div><div><dt>{t('visitors.phone')}</dt><dd>{visitor.phoneNumber || '—'}</dd></div></dl><div className="mobile-record-actions"><button type="button" onClick={() => navigate(`/visitors/${visitor.id}`)} className="row-action">{t('visitors.view')}</button>{user?.role === 'ADMIN' && <DevDeleteButton onClick={() => handleDelete(visitor)} />}</div></article>)}</div></>}{total > 20 && <div className="pagination-row"><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>{t('common.previous')}</button><span>{page}</span><button type="button" disabled={page * 20 >= total} onClick={() => setPage(value => value + 1)}>{t('common.next')}</button></div>}</>}
+  </div></Layout>;
 }

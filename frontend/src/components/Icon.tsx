@@ -14,7 +14,11 @@ export type IconName =
   | 'check'
   | 'alert'
   | 'menu'
-  | 'close';
+  | 'close'
+  | 'chevron-down'
+  | 'chevron-up';
+  
+  
 
 const paths: Record<IconName, JSX.Element> = {
   dashboard: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
@@ -31,6 +35,8 @@ const paths: Record<IconName, JSX.Element> = {
   alert: <><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4M12 17h.01" /></>,
   menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
   close: <><path d="m6 6 12 12M18 6 6 18" /></>,
+  'chevron-down': <path d="m6 9 6 6 6-6" />,
+  'chevron-up': <path d="m6 15 6-6 6 6" />,
 };
 
 export function Icon({ name, size = 18, strokeWidth = 1.8, ...props }: SVGProps<SVGSVGElement> & { name: IconName }) {

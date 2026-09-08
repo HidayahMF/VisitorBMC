@@ -1,0 +1,5 @@
+import { type Request, type Response, type NextFunction } from 'express';
+import { visitReport, visitorReport, inductionReport } from '../services/reports.service';
+export async function visits(req: Request, res: Response, next: NextFunction) { try { const q=req.query as Record<string,string|undefined>; res.json(await visitReport({from:q.from,to:q.to,companyId:q.companyId?Number(q.companyId):undefined,host:q.host,status:q.status,page:q.page?Number(q.page):undefined,limit:q.limit?Number(q.limit):undefined})); } catch(e){next(e);} }
+export async function visitors(req: Request, res: Response, next: NextFunction) { try { const q=req.query as Record<string,string|undefined>; res.json(await visitorReport({companyId:q.companyId?Number(q.companyId):undefined,status:q.status})); } catch(e){next(e);} }
+export async function inductions(req: Request, res: Response, next: NextFunction) { try { const q=req.query as Record<string,string|undefined>; res.json(await inductionReport({from:q.from,to:q.to,companyId:q.companyId?Number(q.companyId):undefined,page:q.page?Number(q.page):undefined,limit:q.limit?Number(q.limit):undefined})); } catch(e){next(e);} }

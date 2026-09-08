@@ -5,9 +5,15 @@ export async function getActiveInductionContents(): Promise<InductionContentResp
   return apiClient<InductionContentResponse>('/safety-inductions/active/contents');
 }
 
+export interface InductionWorkflow { visitId: number; visitCode: string; status: string; visitors: Array<{ visitorId: number; visitorName: string; safetyStatus: 'VALID' | 'REQUIRED' | 'EXPIRED'; needsInduction: boolean }>; requiredCount: number; completedCount: number; remainingCount: number; nextVisitorId: number | null; }
+export async function issueInductionToken(visitId: number): Promise<{ token: string; expiresAt: string }> { return apiClient(`/safety-inductions/access/${visitId}`, { method: 'POST' }); }
+export async function getInductionWorkflow(token: string): Promise<InductionWorkflow> { return apiClient<InductionWorkflow>(`/safety-inductions/token/${encodeURIComponent(token)}/workflow`); }
+
 export async function getVisitorInductionHistory(visitorId: number): Promise<InductionRecord[]> {
   return apiClient<InductionRecord[]>(`/safety-inductions/visitor/${visitorId}/history`);
 }
+export async function getInductionConfig() { return apiClient<Array<{ Id:number; Title:string; Version:number; ValidMonths:number; IsActive:boolean; ForceReinductionOnNewVersion:boolean }>>('/safety-inductions/manage/config'); }
+export async function updateInductionConfig(data: { validMonths:number; forceReinductionOnNewVersion:boolean }) { return apiClient('/safety-inductions/manage/config', { method:'PATCH', body:JSON.stringify(data) }); }
 
 export async function listManagedInductionContents(): Promise<InductionContent[]> {
   return apiClient<InductionContent[]>('/safety-inductions/manage/contents');
@@ -40,10 +46,10 @@ export async function deleteInductionContent(id: number): Promise<void> {
 }
 
 export async function completeInduction(data: {
+  token: string;
   visitorId: number;
-  visitId: number;
   acknowledged: boolean;
-}): Promise<{ recordId: number; completedAt: string; acknowledgedAt: string; validUntil: string }> {
+}): Promise<{ recordId: number; completedAt: string; acknowledgedAt: string; validUntil: string; workflow?: InductionWorkflow }> {
   return apiClient<{ recordId: number; completedAt: string; acknowledgedAt: string; validUntil: string }>('/safety-inductions/complete', {
     method: 'POST',
     body: JSON.stringify(data),

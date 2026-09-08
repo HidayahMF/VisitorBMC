@@ -1,121 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { deleteCompany, listCompanies, updateCompanyStatus } from '../api/companies.api';
 import { type Company } from '../types/company';
 import { Layout } from '../components/Layout';
 import { DevDeleteButton } from '../components/DevFillButton';
+import { ErrorState, EmptyState } from '../components/AsyncState';
+import { confirmAction } from '../components/ConfirmationHost';
+import { useLanguage } from '../i18n/LanguageContext';
+import { userFacingError } from '../api/client';
+
+function CompanyStatus({ active, label }: { active: boolean; label: string }) {
+  return <span className={`status-badge ${active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{label}</span>;
+}
 
 export function CompaniesPage() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    load();
-  }, [search, page]);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await listCompanies({ q: search || undefined, page, limit: 20 });
-      setCompanies(res.data);
-      setTotal(res.pagination.total);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }
-
-  async function handleToggleStatus(c: Company) {
-    try {
-      await updateCompanyStatus(c.id, !c.isActive);
-      load();
-    } catch { /* ignore */ }
-  }
-
-  async function handleDelete(c: Company) {
-    if (!confirm(`Hapus company "${c.companyName}" beserta data development terkait?`)) return;
-    try {
-      await deleteCompany(c.id);
-      await load();
-    } catch {
-      alert('Failed to delete company');
-    }
-  }
-
-  return (
-    <Layout>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold">Companies</h1>
-        <button
-          onClick={() => navigate('/companies/new')}
-          className="bg-blue-700 text-white text-sm px-4 py-2 rounded hover:bg-blue-800"
-        >
-          + Add Company
-        </button>
-      </div>
-
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-        placeholder="Search company..."
-        className="w-full max-w-md px-3 py-2 border border-gray-300 rounded text-sm mb-4"
-      />
-
-      {loading ? (
-        <p className="text-sm text-gray-500">Loading...</p>
-      ) : (
-        <>
-          <p className="text-xs text-gray-400 mb-2">{total} company{total !== 1 ? 'ies' : ''}</p>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-gray-500">
-                <th className="py-2">Company Name</th>
-                <th className="py-2">Status</th>
-                {user?.role === 'ADMIN' && <th className="py-2 text-right">Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {companies.map((c) => (
-                <tr key={c.id} className="border-b">
-                   <td className="py-2">
-                     {user?.role === 'ADMIN' ? (
-                       <button onClick={() => navigate(`/companies/${c.id}/edit`)} className="text-blue-700 hover:underline">
-                         {c.companyName}
-                       </button>
-                     ) : c.companyName}
-                  </td>
-                  <td className="py-2">
-                    <span className={`text-xs px-2 py-0.5 rounded ${c.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {c.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  {user?.role === 'ADMIN' && (
-                    <td className="py-2 text-right">
-                      <button onClick={() => handleToggleStatus(c)} className="text-xs text-gray-500 hover:text-gray-800">
-                        {c.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <DevDeleteButton onClick={() => handleDelete(c)} />
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {companies.length === 0 && <p className="text-sm text-gray-400 mt-2">No companies found.</p>}
-          {total > 20 && (
-            <div className="flex gap-2 mt-4">
-              <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="text-sm px-3 py-1 border rounded disabled:opacity-40">Prev</button>
-              <span className="text-sm text-gray-500 py-1">Page {page}</span>
-              <button disabled={page * 20 >= total} onClick={() => setPage(p => p + 1)} className="text-sm px-3 py-1 border rounded disabled:opacity-40">Next</button>
-            </div>
-          )}
-        </>
-      )}
-    </Layout>
-  );
+  const { user } = useAuth(); const navigate = useNavigate(); const { language, t } = useLanguage();
+  const [companies, setCompanies] = useState<Company[]>([]); const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const [total, setTotal] = useState(0); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [actionLoading, setActionLoading] = useState<number | null>(null);
+  useEffect(() => { void load(); }, [search, page]);
+  async function load() { setLoading(true); setError(''); try { const result = await listCompanies({ q: search || undefined, page, limit: 20 }); setCompanies(result.data); setTotal(result.pagination.total); } catch (cause) { setError(userFacingError(cause, language)); } finally { setLoading(false); } }
+  async function handleToggleStatus(company: Company) { if (actionLoading !== null) return; setActionLoading(company.id); setError(''); try { await updateCompanyStatus(company.id, !company.isActive); await load(); } catch (cause) { setError(userFacingError(cause, language)); } finally { setActionLoading(null); } }
+  async function handleDelete(company: Company) { if (!await confirmAction(`${t('common.delete')} "${company.companyName}"?`)) return; setActionLoading(company.id); setError(''); try { await deleteCompany(company.id); await load(); } catch (cause) { setError(userFacingError(cause, language)); } finally { setActionLoading(null); } }
+  const countLabel = total === 1 ? t('companies.companyCount') : t('companies.companiesCount');
+  const emptyMessage = search.trim() ? `${t('companies.noSearchResults')} "${search.trim()}".` : t('companies.noCompanies');
+  return <Layout><div className="companies-page">
+    <header className="page-header-compact"><div><p className="page-eyebrow">{t('navigation.administration')}</p><h1>{t('companies.title')}</h1><p>{t('companies.description')}</p></div><button type="button" onClick={() => navigate('/companies/new')} className="primary-button">+ {t('companies.add')}</button></header>
+    <div className="companies-toolbar"><div className="companies-search-wrap"><label htmlFor="companies-search">{t('companies.search')}</label><input id="companies-search" type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('companies.searchPlaceholder')} /></div>{!loading && !error && <span className="result-count">{total} {countLabel}</span>}</div>
+    {error ? <ErrorState message={error} onRetry={load} /> : loading ? <p className="page-loading">{t('common.loading')}</p> : companies.length === 0 ? <div className="company-empty"><EmptyState message={emptyMessage} />{!search.trim() && <><p>{t('companies.emptyHint')}</p><button type="button" onClick={() => navigate('/companies/new')} className="primary-button">+ {t('companies.add')}</button></>}</div> : <>
+      <div className="companies-table-wrap"><table className="companies-table"><colgroup><col /><col className="companies-status-col" />{user?.role === 'ADMIN' && <col className="companies-action-col" />}</colgroup><thead><tr><th>{t('companies.company')}</th><th>{t('companies.status')}</th>{user?.role === 'ADMIN' && <th className="text-right">{t('companies.action')}</th>}</tr></thead><tbody>{companies.map(company => <tr key={company.id}><td>{user?.role === 'ADMIN' ? <button type="button" onClick={() => navigate(`/companies/${company.id}/edit`)} className="company-name-link">{company.companyName}</button> : <span className="company-name">{company.companyName}</span>}</td><td><CompanyStatus active={company.isActive} label={company.isActive ? t('companies.active') : t('companies.inactive')} /></td>{user?.role === 'ADMIN' && <td className="text-right"><button type="button" disabled={actionLoading !== null} onClick={() => void handleToggleStatus(company)} className="row-action">{actionLoading === company.id ? t('common.update') : company.isActive ? t('common.deactivate') : t('common.activate')}</button><DevDeleteButton onClick={() => handleDelete(company)} /></td>}</tr>)}</tbody></table></div>
+      <div className="mobile-record-list companies-mobile-list">{companies.map(company => <article key={company.id} className="mobile-record-card"><div className="mobile-record-heading"><div>{user?.role === 'ADMIN' ? <button type="button" onClick={() => navigate(`/companies/${company.id}/edit`)} className="company-name-link">{company.companyName}</button> : <strong>{company.companyName}</strong>}</div><CompanyStatus active={company.isActive} label={company.isActive ? t('companies.active') : t('companies.inactive')} /></div>{user?.role === 'ADMIN' && <div className="mobile-record-actions"><button type="button" disabled={actionLoading !== null} onClick={() => void handleToggleStatus(company)} className="row-action">{actionLoading === company.id ? t('common.update') : company.isActive ? t('common.deactivate') : t('common.activate')}</button><DevDeleteButton onClick={() => handleDelete(company)} /></div>}</article>)}</div>
+      {total > 20 && <div className="pagination-row"><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>{t('common.previous')}</button><span>{page}</span><button type="button" disabled={page * 20 >= total} onClick={() => setPage(value => value + 1)}>{t('common.next')}</button></div>}
+    </>}
+  </div></Layout>;
 }

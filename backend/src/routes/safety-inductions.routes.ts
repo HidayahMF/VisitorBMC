@@ -9,13 +9,17 @@ import { env } from '../config/env';
 import {
   createInductionContent,
   deleteInductionContent,
+  listActiveInductions,
+  updateActiveInductionConfig,
   listManagedInductionContents,
   updateInductionContentStatus,
 } from '../services/safety-inductions.service';
 import {
   getActiveInductionWithContents,
   getInductionHistory,
-  completeInduction,
+  getPublicInductionWorkflowByToken,
+  issuePublicInductionToken,
+  completeInductionByToken,
 } from '../services/safety-inductions.service';
 
 const contentUploadDir = path.join(env.UPLOAD_DIR, 'safety-induction');
@@ -49,6 +53,9 @@ export async function getActiveContents(
   }
 }
 
+export async function issueToken(req: AuthenticatedRequest, res: Response, next: NextFunction) { try { const visitId = Number(req.params.visitId); if (!Number.isInteger(visitId)) throw new AppError('Invalid visit ID', 400); res.status(200).json(await issuePublicInductionToken(visitId)); } catch (error) { next(error); } }
+export async function tokenWorkflow(req: Request, res: Response, next: NextFunction) { try { res.json(await getPublicInductionWorkflowByToken(String(req.params.token))); } catch (error) { next(error); } }
+
 export async function getVisitorHistory(
   req: Request,
   res: Response,
@@ -73,28 +80,19 @@ export async function complete(
   next: NextFunction,
 ) {
   try {
-    const { visitorId, visitId, acknowledged } = req.body as {
+    const { token, visitorId, acknowledged } = req.body as {
+      token?: string;
       visitorId?: number;
-      visitId?: number;
       acknowledged?: boolean;
     };
-
-    if (!visitorId) {
-      throw new AppError('Visitor ID is required', 400);
-    }
-    if (!visitId) {
-      throw new AppError('Visit ID is required', 400);
-    }
+    if (!token || typeof visitorId !== 'number' || !Number.isInteger(visitorId)) throw new AppError('Induction access token and visitor ID are required', 400);
     if (acknowledged === undefined) {
       throw new AppError('Acknowledgement is required', 400);
     }
 
-    const result = await completeInduction(
-      { visitorId, visitId, acknowledged, ipAddress: req.ip },
-      req.user!.userId,
-    );
+    const completion = await completeInductionByToken(token, visitorId, acknowledged, req.ip);
 
-    res.status(201).json(result);
+    res.status(200).json({ ...completion.result, workflow: completion.workflow });
   } catch (error) {
     next(error);
   }
@@ -111,6 +109,9 @@ export async function managedContents(
     next(error);
   }
 }
+
+export async function config(_req: AuthenticatedRequest, res: Response, next: NextFunction) { try { res.json(await listActiveInductions()); } catch (error) { next(error); } }
+export async function updateConfig(req: AuthenticatedRequest, res: Response, next: NextFunction) { try { const { validMonths, forceReinductionOnNewVersion } = req.body as { validMonths?: number; forceReinductionOnNewVersion?: boolean }; if (typeof validMonths !== 'number' || typeof forceReinductionOnNewVersion !== 'boolean') throw new AppError('Valid configuration is required', 400); res.json(await updateActiveInductionConfig({ validMonths, forceReinductionOnNewVersion }, req.user!.userId, req.ip)); } catch (error) { next(error); } }
 
 export const uploadContent = [upload.single('file'), async (
   req: AuthenticatedRequest,

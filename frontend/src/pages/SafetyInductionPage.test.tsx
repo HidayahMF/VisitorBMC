@@ -3,13 +3,15 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { SafetyInductionPage } from './SafetyInductionPage';
 
-const { mockGetActiveContents, mockCompleteInduction } = vi.hoisted(() => ({
+const { mockGetActiveContents, mockCompleteInduction, mockGetWorkflow } = vi.hoisted(() => ({
   mockGetActiveContents: vi.fn(),
   mockCompleteInduction: vi.fn(),
+  mockGetWorkflow: vi.fn(),
 }));
 
 vi.mock('../api/safety-inductions.api', () => ({
   getActiveInductionContents: () => mockGetActiveContents(),
+  getInductionWorkflow: () => mockGetWorkflow(),
   completeInduction: (data: unknown) => mockCompleteInduction(data),
   getVisitorInductionHistory: vi.fn(() => Promise.resolve([])),
 }));
@@ -25,24 +27,32 @@ const inductionData = {
 beforeEach(() => {
   vi.resetAllMocks();
   mockGetActiveContents.mockResolvedValue(inductionData);
+  mockGetWorkflow.mockResolvedValue({ visitId: 1, visitCode: 'VIS-1', visitors: [{ visitorId: 7, visitorName: 'Andi', safetyStatus: 'REQUIRED', needsInduction: true }], requiredCount: 1, completedCount: 0, remainingCount: 1, nextVisitorId: 7, status: 'PENDING_INDUCTION' });
 });
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/safety-induction/1?visitorId=7&total=5&completed=1']}>
+    <MemoryRouter initialEntries={['/safety-induction/secure-test-token?total=999&completed=999']}>
       <Routes>
-        <Route path="/safety-induction/:visitId" element={<SafetyInductionPage />} />
+        <Route path="/safety-induction/:token" element={<SafetyInductionPage />} />
       </Routes>
     </MemoryRouter>,
   );
 }
 
 describe('SafetyInductionPage', () => {
+  it('shows an empty state when no active content is configured', async () => {
+    mockGetActiveContents.mockResolvedValue({ induction: inductionData.induction, contents: [] });
+    renderPage();
+    expect(await screen.findByText('Konten safety induction belum tersedia.')).toBeInTheDocument();
+    expect(screen.queryByText('Content 1 of 0')).not.toBeInTheDocument();
+  });
+
   it('shows the first content item after loading', async () => {
     renderPage();
     expect(await screen.findByText('Intro Video')).toBeInTheDocument();
     expect(screen.getByText('Content 1 of 2')).toBeInTheDocument();
-    expect(screen.getByText('1 / 5 Completed')).toBeInTheDocument();
+    expect(screen.getByText('0 / 1 Pengunjung selesai')).toBeInTheDocument();
   });
 
   it('navigates to next content', async () => {
@@ -76,6 +86,8 @@ describe('SafetyInductionPage', () => {
 
   it('submits and shows completion screen', async () => {
     mockCompleteInduction.mockResolvedValue({ recordId: 10, validUntil: '2027-03-07' });
+    mockGetWorkflow.mockResolvedValueOnce({ visitId: 1, visitCode: 'VIS-1', visitors: [{ visitorId: 7, visitorName: 'Andi', safetyStatus: 'REQUIRED', needsInduction: true }], requiredCount: 1, completedCount: 0, remainingCount: 1, nextVisitorId: 7, status: 'PENDING_INDUCTION' });
+    mockGetWorkflow.mockResolvedValueOnce({ visitId: 1, visitCode: 'VIS-1', visitors: [{ visitorId: 7, visitorName: 'Andi', safetyStatus: 'VALID', needsInduction: false }], requiredCount: 0, completedCount: 1, remainingCount: 0, nextVisitorId: null, status: 'READY_FOR_CHECKIN' });
     renderPage();
     await screen.findByText('Intro Video');
     fireEvent.click(screen.getByText('Next'));
@@ -85,9 +97,9 @@ describe('SafetyInductionPage', () => {
     await waitFor(() => expect(button).toBeEnabled());
     fireEvent.click(button);
     expect(await screen.findByText('Induction Complete')).toBeInTheDocument();
-    expect(mockCompleteInduction).toHaveBeenCalledWith({
+      expect(mockCompleteInduction).toHaveBeenCalledWith({
+      token: 'secure-test-token',
       visitorId: 7,
-      visitId: 1,
       acknowledged: true,
     });
   });

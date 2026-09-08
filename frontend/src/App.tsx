@@ -15,13 +15,17 @@ import { ActiveVisitsPage } from './pages/ActiveVisitsPage';
 import { SafetyInductionPage } from './pages/SafetyInductionPage';
 import { SafetyInductionManagementPage } from './pages/SafetyInductionManagementPage';
 import { ProtectedRoute, AdminOnlyRoute } from './components/ProtectedRoute';
+import { AuditLogPage } from './pages/AuditLogPage';
+import { ReportsPage } from './pages/ReportsPage';
+import { SafetyConfigurationPage } from './pages/SafetyConfigurationPage';
+import { UserManagementPage } from './pages/UserManagementPage';
 
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/safety-induction/:visitId" element={<SafetyInductionPage />} />
+         <Route path="/safety-induction/:token" element={<SafetyInductionPage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/companies" element={<CompaniesPage />} />
@@ -35,6 +39,10 @@ function App() {
           <Route path="/visits/:id" element={<VisitDetailPage />} />
           <Route path="/safety-inductions/manage" element={<SafetyInductionManagementPage />} />
           <Route element={<AdminOnlyRoute />}>
+          <Route path="/audit-log" element={<AuditLogPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/safety-inductions/config" element={<SafetyConfigurationPage />} />
+            <Route path="/users" element={<UserManagementPage />} />
             <Route path="/companies/:id/edit" element={<EditCompanyPage />} />
             <Route path="/visitors/:id/edit" element={<EditVisitorPage />} />
           </Route>

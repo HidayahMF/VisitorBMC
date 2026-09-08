@@ -1,10 +1,11 @@
 import { getDbConnection, sql } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
-import { getActiveSafetyInductionConfig, computeVisitorClearance, type SafetyInductionConfig } from './safety-clearance.service';
+import { getActiveSafetyInductionConfig, checkVisitorSafetyClearance, computeVisitorClearance, type SafetyInductionConfig, type SafetyStatus } from './safety-clearance.service';
 import { logAudit, type SqlExecutor } from './audit-log.service';
 import fs from 'fs/promises';
 import path from 'path';
 import { env } from '../config/env';
+import crypto from 'crypto';
 
 export interface ISafetyInduction {
   Id: number;
@@ -28,6 +29,72 @@ export interface ISafetyInductionContent {
   IsRequired: boolean;
   IsActive: boolean;
   CreatedAt: Date;
+}
+
+export interface PublicInductionWorkflow {
+  visitId: number;
+  visitCode: string;
+  status: string;
+  visitors: Array<{ visitorId: number; visitorName: string; safetyStatus: SafetyStatus; needsInduction: boolean }>;
+  requiredCount: number;
+  completedCount: number;
+  remainingCount: number;
+  nextVisitorId: number | null;
+}
+
+const PUBLIC_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
+function tokenHash(token: string): Buffer { return crypto.createHash('sha256').update(token, 'utf8').digest(); }
+
+export async function issuePublicInductionToken(visitId: number): Promise<{ token: string; expiresAt: Date }> {
+  const pool = await getDbConnection();
+  const visit = await pool.request().input('visitId', sql.Int, visitId).query('SELECT Id, Status FROM vms.Visits WHERE Id=@visitId');
+  if (!visit.recordset[0]) throw new AppError('Visit not found', 404);
+  if (!['PENDING_INDUCTION', 'READY_FOR_CHECKIN'].includes(visit.recordset[0].Status)) throw new AppError('Visit is not eligible for induction', 400);
+  const token = crypto.randomBytes(32).toString('base64url'); const expiresAt = new Date(Date.now() + PUBLIC_TOKEN_TTL_MS);
+  await pool.request().input('visitId', sql.Int, visitId).input('hash', sql.VarBinary(32), tokenHash(token)).input('expiresAt', sql.DateTime2, expiresAt).query('UPDATE vms.Visits SET InductionAccessTokenHash=@hash, InductionAccessTokenExpiresAt=@expiresAt, UpdatedAt=SYSUTCDATETIME() WHERE Id=@visitId');
+  return { token, expiresAt };
+}
+
+async function visitIdFromToken(token: string): Promise<number> {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new AppError('Invalid induction access token', 401);
+  const result = await (await getDbConnection()).request().input('hash', sql.VarBinary(32), tokenHash(token)).query('SELECT Id FROM vms.Visits WHERE InductionAccessTokenHash=@hash AND InductionAccessTokenExpiresAt>SYSUTCDATETIME()');
+  if (!result.recordset[0]) throw new AppError('Invalid or expired induction access token', 401);
+  return result.recordset[0].Id;
+}
+
+export async function getPublicInductionWorkflowByToken(token: string): Promise<PublicInductionWorkflow> { return getPublicInductionWorkflow(await visitIdFromToken(token)); }
+
+export async function completeInductionByToken(token: string, visitorId: number, acknowledged: boolean, ipAddress?: string): Promise<{ result: IInductionCompletionResult; workflow: PublicInductionWorkflow }> {
+  const visitId = await visitIdFromToken(token); const workflow = await getPublicInductionWorkflow(visitId);
+  const target = workflow.visitors.find((visitor) => visitor.visitorId === visitorId);
+  if (!target) throw new AppError('Visitor is not part of this visit', 403);
+  const next = workflow.visitors.find((visitor) => visitor.needsInduction);
+  if (target.needsInduction && (!next || next.visitorId !== visitorId)) throw new AppError('Visitor is not the next visitor requiring induction', 409);
+  const result = await completeInduction({ visitorId, visitId, acknowledged, ipAddress }, null);
+  return { result, workflow: await getPublicInductionWorkflow(visitId) };
+}
+
+export async function getPublicInductionWorkflow(visitId: number): Promise<PublicInductionWorkflow> {
+  const pool = await getDbConnection();
+  const visitResult = await pool.request().input('visitId', sql.Int, visitId).query(`
+    SELECT v.Id, v.VisitCode, v.CompanyId, v.Status
+    FROM vms.Visits v WHERE v.Id = @visitId
+  `);
+  const visit = visitResult.recordset[0];
+  if (!visit) throw new AppError('Visit not found', 404);
+  const visitorResult = await pool.request().input('visitId', sql.Int, visitId).query(`
+    SELECT vis.Id, vis.VisitorName FROM vms.VisitVisitors vv
+    INNER JOIN vms.Visitors vis ON vis.Id = vv.VisitorId
+    WHERE vv.VisitId = @visitId AND vis.IsActive = 1 ORDER BY vis.Id
+  `);
+  const clearance = await checkVisitorSafetyClearance(visitorResult.recordset.map((row) => row.Id), visit.CompanyId);
+  const visitors = visitorResult.recordset.map((row) => {
+    const safety = clearance.visitors.find((item) => item.visitorId === row.Id);
+    const safetyStatus = safety?.status ?? 'REQUIRED';
+    return { visitorId: row.Id, visitorName: row.VisitorName, safetyStatus, needsInduction: safetyStatus !== 'VALID' };
+  });
+  const remaining = visitors.filter((visitor) => visitor.needsInduction);
+  return { visitId, visitCode: visit.VisitCode, status: visit.Status, visitors, requiredCount: remaining.length, completedCount: visitors.length - remaining.length, remainingCount: remaining.length, nextVisitorId: remaining[0]?.visitorId ?? null };
 }
 
 export interface IVisitorInductionRecord {
@@ -266,7 +333,7 @@ export async function getInductionHistory(visitorId: number): Promise<IVisitorIn
 
 export async function completeInduction(
   params: ICompleteInductionParams,
-  createdBy: number
+  createdBy: number | null
 ): Promise<IInductionCompletionResult> {
   const { visitorId, visitId, acknowledged, ipAddress } = params;
 
@@ -309,7 +376,7 @@ export async function completeInduction(
   let transactionStarted = false;
 
   try {
-    await transaction.begin();
+    await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
     transactionStarted = true;
 
     const result = await transaction
@@ -322,11 +389,26 @@ export async function completeInduction(
       .input('acknowledged', sql.Bit, 1)
       .input('createdBy', sql.Int, createdBy)
       .query(`
+        IF EXISTS (
+          SELECT 1 FROM vms.VisitorInductionRecords WITH (UPDLOCK, HOLDLOCK)
+          WHERE VisitorId = @visitorId AND VisitId = @visitId
+            AND SafetyInductionId = @safetyInductionId
+            AND ValidUntil > SYSUTCDATETIME()
+        )
+        BEGIN
+          SELECT TOP 1 Id, CompletedAt, ValidUntil, AcknowledgedAt, 1 AS AlreadyExists
+          FROM vms.VisitorInductionRecords
+          WHERE VisitorId = @visitorId AND VisitId = @visitId
+            AND SafetyInductionId = @safetyInductionId
+            AND ValidUntil > SYSUTCDATETIME()
+          ORDER BY CompletedAt DESC, Id DESC;
+        END
+        ELSE
         INSERT INTO vms.VisitorInductionRecords
           (VisitorId, VisitId, SafetyInductionId, InductionVersion,
            CompletedAt, ValidUntil, Acknowledged, AcknowledgedAt, CreatedBy)
         OUTPUT INSERTED.Id, INSERTED.CompletedAt,
-               INSERTED.ValidUntil, INSERTED.AcknowledgedAt
+               INSERTED.ValidUntil, INSERTED.AcknowledgedAt, 0 AS AlreadyExists
         VALUES (@visitorId, @visitId, @safetyInductionId, @inductionVersion,
                 SYSUTCDATETIME(),
                 DATEADD(month, @validMonths, SYSUTCDATETIME()),
@@ -338,7 +420,7 @@ export async function completeInduction(
     const acknowledgedAt = result.recordset[0].AcknowledgedAt;
     const validUntil = result.recordset[0].ValidUntil;
 
-    await logAudit(transaction, {
+    if (!result.recordset[0].AlreadyExists) await logAudit(transaction, {
       userId: createdBy,
       action: 'SAFETY_INDUCTION_COMPLETED',
       entityType: 'VisitorInductionRecord',
@@ -425,4 +507,12 @@ export async function listActiveInductions(): Promise<ISafetyInduction[]> {
     CreatedAt: row.CreatedAt,
     UpdatedAt: row.UpdatedAt,
   }));
+}
+
+export async function updateActiveInductionConfig(params: { validMonths: number; forceReinductionOnNewVersion: boolean }, userId: number, ipAddress?: string): Promise<ISafetyInduction> {
+  if (!Number.isInteger(params.validMonths) || params.validMonths < 1 || params.validMonths > 120) throw new AppError('ValidMonths must be between 1 and 120', 400);
+  const pool = await getDbConnection(); const result = await pool.request().input('validMonths', sql.Int, params.validMonths).input('force', sql.Bit, params.forceReinductionOnNewVersion ? 1 : 0).query(`UPDATE vms.SafetyInductions SET ValidMonths=@validMonths, ForceReinductionOnNewVersion=@force, UpdatedAt=SYSUTCDATETIME() OUTPUT INSERTED.Id, INSERTED.Title, INSERTED.Version, INSERTED.ValidMonths, INSERTED.IsActive, INSERTED.ForceReinductionOnNewVersion, INSERTED.CreatedAt, INSERTED.UpdatedAt WHERE IsActive=1`);
+  const row = result.recordset[0]; if (!row) throw new AppError('No active Safety Induction configuration found', 404);
+  await logAudit(pool, { userId, action: 'SAFETY_CONFIG_UPDATED', entityType: 'SafetyInduction', entityId: row.Id, details: JSON.stringify({ validMonths: params.validMonths, forceReinductionOnNewVersion: params.forceReinductionOnNewVersion }), ipAddress: ipAddress ?? null });
+  return { Id: row.Id, Title: row.Title, Version: row.Version, ValidMonths: row.ValidMonths, IsActive: !!row.IsActive, ForceReinductionOnNewVersion: !!row.ForceReinductionOnNewVersion, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt };
 }

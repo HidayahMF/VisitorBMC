@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { VisitDetailPage } from './VisitDetailPage';
 import { AuthProvider } from '../context/AuthContext';
+import { LanguageProvider } from '../i18n/LanguageContext';
 
 const { mockGetVisit, mockCheckIn, mockCheckOut } = vi.hoisted(() => ({
   mockGetVisit: vi.fn(),
@@ -10,14 +11,23 @@ const { mockGetVisit, mockCheckIn, mockCheckOut } = vi.hoisted(() => ({
   mockCheckOut: vi.fn(),
 }));
 
+const { mockIssueToken } = vi.hoisted(() => ({ mockIssueToken: vi.fn() }));
+
 vi.mock('../api/visits.api', () => ({
   getVisit: (id: number) => mockGetVisit(id),
   checkInVisit: (id: number) => mockCheckIn(id),
   checkOutVisit: (id: number) => mockCheckOut(id),
 }));
+vi.mock('../api/safety-inductions.api', () => ({ issueInductionToken: (id: number) => mockIssueToken(id) }));
 
 vi.mock('../api/client', () => ({
   apiClient: vi.fn(() => Promise.resolve({ id: 1, name: 'Admin', username: 'admin', role: 'ADMIN' })),
+  userFacingError: () => 'Tidak dapat terhubung ke server.',
+}));
+
+vi.mock('../components/ConfirmationHost', () => ({
+  ConfirmationHost: () => null,
+  confirmAction: () => Promise.resolve(true),
 }));
 
 function buildVisit(overrides: Partial<Record<string, unknown>> = {}) {
@@ -49,34 +59,33 @@ function renderPage(status = 'READY_FOR_CHECKIN', visitors?: unknown[]) {
   const visit = buildVisit(overrides);
   mockGetVisit.mockResolvedValue(visit);
   return render(
-    <AuthProvider>
+    <LanguageProvider><AuthProvider>
       <MemoryRouter initialEntries={['/visits/1']}>
         <Routes>
           <Route path="/visits/:id" element={<VisitDetailPage />} />
         </Routes>
       </MemoryRouter>
-    </AuthProvider>,
+    </AuthProvider></LanguageProvider>,
   );
 }
 
 describe('VisitDetailPage', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
   it('renders visit details', async () => {
     renderPage();
     expect(await screen.findByText('VIS-20260907-001')).toBeInTheDocument();
     expect(screen.getByText('PT ABC')).toBeInTheDocument();
-    expect(screen.getByText('Andi')).toBeInTheDocument();
+    expect(screen.getAllByText('Andi')).toHaveLength(2);
   });
 
   it('shows Check In button for READY_FOR_CHECKIN', async () => {
     renderPage('READY_FOR_CHECKIN');
     await screen.findByText('VIS-20260907-001');
-    expect(screen.getByText('Check In')).toBeInTheDocument();
-    expect(screen.queryByText('Check Out')).not.toBeInTheDocument();
+    expect(screen.getByText('Masuk')).toBeInTheDocument();
+    expect(screen.getAllByText('Keluar')).toHaveLength(1);
   });
 
   it('calls checkInVisit and refreshes status', async () => {
@@ -84,10 +93,10 @@ describe('VisitDetailPage', () => {
     mockCheckIn.mockResolvedValue(updated);
     renderPage('READY_FOR_CHECKIN');
     await screen.findByText('VIS-20260907-001');
-    fireEvent.click(screen.getByText('Check In'));
+    fireEvent.click(screen.getByText('Masuk'));
     await waitFor(() => expect(mockCheckIn).toHaveBeenCalledWith(1));
     expect(screen.getByText('Visit is currently inside the facility.')).toBeInTheDocument();
-    expect(screen.getByText('Check Out')).toBeInTheDocument();
+    expect(screen.getAllByText('Keluar')).toHaveLength(2);
   });
 
   it('calls checkOutVisit for IN status', async () => {
@@ -95,9 +104,9 @@ describe('VisitDetailPage', () => {
     mockCheckOut.mockResolvedValue(updated);
     renderPage('IN', buildVisit().Visitors);
     await screen.findByText('VIS-20260907-001');
-    fireEvent.click(screen.getByText('Check Out'));
+    fireEvent.click(screen.getAllByText('Keluar')[1]);
     await waitFor(() => expect(mockCheckOut).toHaveBeenCalledWith(1));
-    expect(screen.getByText('Checked Out')).toBeInTheDocument();
+    expect(screen.getByText('Sudah Keluar')).toBeInTheDocument();
   });
 
   it('shows Start Safety Induction button when pending induction', async () => {
@@ -105,6 +114,16 @@ describe('VisitDetailPage', () => {
       { Id: 11, VisitorCode: 'VST-000011', VisitorName: 'Reza', PhoneNumber: null, SafetyStatus: 'REQUIRED', ValidUntil: null },
     ]);
     await screen.findByText('VIS-20260907-001');
-    expect(screen.getByText('Start Safety Induction')).toBeInTheDocument();
+    expect(screen.getByText('Mulai Safety Induction')).toBeInTheDocument();
+  });
+
+  it('shows an error when induction access cannot be created', async () => {
+    mockIssueToken.mockRejectedValue(new Error('server unavailable'));
+    renderPage('PENDING_INDUCTION', [
+      { Id: 11, VisitorCode: 'VST-000011', VisitorName: 'Reza', PhoneNumber: null, SafetyStatus: 'REQUIRED', ValidUntil: null },
+    ]);
+    await screen.findByText('VIS-20260907-001');
+    fireEvent.click(screen.getByText('Mulai Safety Induction'));
+    expect(await screen.findByText('Tidak dapat terhubung ke server.')).toBeInTheDocument();
   });
 });

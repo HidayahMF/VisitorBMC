@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { getActiveInductionContents, completeInduction } from '../api/safety-inductions.api';
+import { useNavigate, useParams } from 'react-router-dom';
+import { getActiveInductionContents, completeInduction, getInductionWorkflow, type InductionWorkflow } from '../api/safety-inductions.api';
 import { type InductionContent, type InductionConfig } from '../types/induction';
 import { Icon } from '../components/Icon';
 import { DevFillButton } from '../components/DevFillButton';
+import { EmptyState } from '../components/AsyncState';
 import k3Video from '../assets/VIDEO K3 BMC VERSi TAMU  FINAL durasi 3.55.mov';
 import safetyRidingImage from '../assets/IMBAUAN BMC SAFETY RIDING.png';
 
@@ -14,16 +15,15 @@ function resolveContentUrl(content: InductionContent): string {
 }
 
 export function SafetyInductionPage() {
-  const { visitId } = useParams<{ visitId: string }>();
-  const [searchParams] = useSearchParams();
+  const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const [induction, setInduction] = useState<InductionConfig | null>(null);
   const [contents, setContents] = useState<InductionContent[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [acknowledged, setAcknowledged] = useState(false);
   const [visitorId, setVisitorId] = useState<number | null>(null);
-  const [completedCount, setCompletedCount] = useState(0);
-  const [totalRequired, setTotalRequired] = useState(0);
+  const [workflow, setWorkflow] = useState<InductionWorkflow | null>(null);
+  const [activeVisitorName, setActiveVisitorName] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -35,22 +35,15 @@ export function SafetyInductionPage() {
 
   async function loadContents() {
     try {
-      const data = await getActiveInductionContents();
+      if (!token) throw new Error('Invalid induction token');
+      const [data, workflowData] = await Promise.all([getActiveInductionContents(), getInductionWorkflow(token)]);
       setInduction(data.induction);
       setContents(data.contents);
+      setWorkflow(workflowData);
 
-      const vid = searchParams.get('visitorId');
-      if (vid) {
-        setVisitorId(parseInt(vid, 10));
-      }
-      const total = searchParams.get('total');
-      if (total) {
-        setTotalRequired(parseInt(total, 10));
-      }
-      const completed = searchParams.get('completed');
-      if (completed) {
-        setCompletedCount(parseInt(completed, 10));
-      }
+      const next = workflowData.visitors.find((item) => item.needsInduction);
+      setVisitorId(next?.visitorId ?? null);
+      setActiveVisitorName(next?.visitorName ?? '');
     } catch {
       setError('Failed to load induction content');
     }
@@ -58,18 +51,26 @@ export function SafetyInductionPage() {
   }
 
   async function handleComplete() {
-    if (!visitorId || !visitId) return;
+    if (!visitorId || !token || !workflow || submitting) return;
 
     setSubmitting(true);
     setError('');
 
     try {
       await completeInduction({
+        token,
         visitorId,
-        visitId: parseInt(visitId, 10),
         acknowledged: true,
       });
-      setCompleted(true);
+      const refreshed = await getInductionWorkflow(token);
+      setWorkflow(refreshed);
+      const next = refreshed.visitors.find((item) => item.needsInduction);
+      if (next) {
+        setVisitorId(next.visitorId);
+        setActiveVisitorName(next.visitorName);
+        setCurrentIndex(0);
+        setAcknowledged(false);
+      } else setCompleted(true);
     } catch {
       setError('Failed to submit acknowledgement');
     }
@@ -120,9 +121,22 @@ export function SafetyInductionPage() {
     );
   }
 
+  if (contents.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-md">
+          <EmptyState message="Konten safety induction belum tersedia." />
+          <button onClick={() => navigate(-1)} className="mt-4 w-full text-sm text-blue-700 hover:underline">Kembali</button>
+        </div>
+      </div>
+    );
+  }
+
   const currentContent = contents[currentIndex];
   const isLast = currentIndex === contents.length - 1;
   const currentContentUrl = resolveContentUrl(currentContent);
+  const completedVisitors = workflow?.completedCount ?? 0;
+  const totalVisitors = workflow?.visitors.length ?? 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -130,12 +144,13 @@ export function SafetyInductionPage() {
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="font-bold text-blue-900">Safety Induction</h1>
+            {activeVisitorName && <p className="text-sm text-gray-700">Pengunjung: <strong>{activeVisitorName}</strong></p>}
             {induction && (
               <p className="text-xs text-gray-500">{induction.title} — V{induction.version}</p>
             )}
           </div>
           <div className="text-sm text-gray-500">
-            {completedCount} / {totalRequired || contents.length} Completed
+            {completedVisitors} / {totalVisitors} Pengunjung selesai
           </div>
         </div>
       </div>
@@ -155,9 +170,14 @@ export function SafetyInductionPage() {
 
             <div className="bg-gray-100 rounded p-4 text-center mb-4">
               {currentContent.ContentType === 'VIDEO' ? (
-                <video className="w-full max-h-[520px] rounded" controls preload="metadata" src={currentContentUrl} />
+                <video className="w-full max-h-[520px] rounded" controls preload="metadata" src={currentContentUrl}>
+                  Video tidak dapat diputar pada perangkat ini.
+                </video>
               ) : currentContent.ContentType === 'PDF' ? (
-                <iframe className="w-full h-[520px] rounded bg-white" src={currentContentUrl} title={currentContent.Title || 'Safety induction document'} />
+                <>
+                  <iframe className="w-full h-[520px] rounded bg-white" src={currentContentUrl} title={currentContent.Title || 'Dokumen safety induction'} />
+                  <a className="inline-block mt-2 text-sm text-blue-700 hover:underline" href={currentContentUrl} target="_blank" rel="noreferrer">Buka dokumen di tab baru</a>
+                </>
               ) : (
                 <img className="mx-auto max-h-[520px] w-auto rounded object-contain" src={currentContentUrl} alt={currentContent.Title || 'Safety induction content'} />
               )}
@@ -189,13 +209,15 @@ export function SafetyInductionPage() {
                <DevFillButton onClick={() => setAcknowledged(true)} label="Centang contoh" />
              </div>
             <label className="flex items-start gap-3 cursor-pointer mb-4">
-              <input
-                type="checkbox"
+               <input
+                 id="induction-acknowledgement"
+                 type="checkbox"
                 checked={acknowledged}
                 onChange={(e) => setAcknowledged(e.target.checked)}
-                className="mt-1"
-              />
-              <span className="text-sm text-gray-700">
+                 className="mt-1"
+                 aria-describedby="induction-acknowledgement-help"
+               />
+               <span id="induction-acknowledgement-help" className="text-sm text-gray-700">
                 Saya sudah melihat, membaca/menonton, dan memahami Safety Induction yang diberikan.
               </span>
             </label>

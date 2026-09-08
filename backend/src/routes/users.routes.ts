@@ -1,0 +1,7 @@
+import { type Request, type Response, type NextFunction } from 'express';
+import { AppError } from '../middleware/errorHandler';
+import { addManagedUser, listManagedUsers, updateManagedUser } from '../services/auth.service';
+import { type AuthenticatedRequest } from '../middleware/authenticate';
+export async function list(_req: Request, res: Response, next: NextFunction) { try { res.json(await listManagedUsers()); } catch (error) { next(error); } }
+export async function create(req: AuthenticatedRequest, res: Response, next: NextFunction) { try { const { username, role } = req.body as { username?: string; role?: 'ADMIN'|'SECURITY' }; if (!username || (role !== 'ADMIN' && role !== 'SECURITY')) throw new AppError('NIP dan role yang valid wajib diisi', 400); res.status(201).json(await addManagedUser(username, role, req.user!.userId, req.ip)); } catch (error) { next(error); } }
+export async function update(req: AuthenticatedRequest, res: Response, next: NextFunction) { try { const id=Number(req.params.id); const { role, isActive }=req.body as { role?: 'ADMIN'|'SECURITY'; isActive?: boolean }; if (!Number.isInteger(id) || (role !== undefined && role !== 'ADMIN' && role !== 'SECURITY') || (isActive !== undefined && typeof isActive !== 'boolean')) throw new AppError('Data user tidak valid',400); const user=await updateManagedUser(id,{role,isActive},req.user!.userId,req.ip); if (!user) throw new AppError('User tidak ditemukan',404); res.json(user); } catch(error){ next(error); } }

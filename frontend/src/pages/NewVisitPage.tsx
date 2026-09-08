@@ -56,6 +56,12 @@ export function NewVisitPage() {
   const [safetyLoading, setSafetyLoading] = useState(false);
   const safetyRequestId = useRef(0);
   const safetyStartedKey = useRef<string | null>(null);
+  const companySearchRequest = useRef(0);
+  const visitorSearchRequest = useRef(0);
+  const hostSearchRequest = useRef(0);
+  const companySearchTimer = useRef<number | undefined>(undefined);
+  const visitorSearchTimer = useRef<number | undefined>(undefined);
+  const hostSearchTimer = useRef<number | undefined>(undefined);
 
   const handleCompanySearch = useCallback(async (q: string) => {
     setCompanyQuery(q);
@@ -66,13 +72,14 @@ export function NewVisitPage() {
       setCompanyResults([]);
       return;
     }
-    const t = setTimeout(async () => {
+    const requestId = ++companySearchRequest.current;
+    if (companySearchTimer.current) window.clearTimeout(companySearchTimer.current);
+    companySearchTimer.current = window.setTimeout(async () => {
       try {
         const data = await searchCompanies(q);
-        setCompanyResults(data);
+        if (requestId === companySearchRequest.current) setCompanyResults(data);
       } catch { /* ignore */ }
     }, 300);
-    return () => clearTimeout(t);
   }, []);
 
   const handleVisitorSearch = useCallback(async (q: string) => {
@@ -82,14 +89,15 @@ export function NewVisitPage() {
       setVisitorResults([]);
       return;
     }
-    const t = setTimeout(async () => {
+    const requestId = ++visitorSearchRequest.current;
+    if (visitorSearchTimer.current) window.clearTimeout(visitorSearchTimer.current);
+    visitorSearchTimer.current = window.setTimeout(async () => {
       try {
         const data = await listVisitors({ q, companyId: selectedCompany.id, active: true });
         const filtered = data.data.filter(v => !visitors.find(sv => sv.id === v.id));
-        setVisitorResults(filtered);
+        if (requestId === visitorSearchRequest.current) setVisitorResults(filtered);
       } catch { /* ignore */ }
     }, 300);
-    return () => clearTimeout(t);
   }, [selectedCompany, visitors]);
 
   const handleHostSearch = useCallback(async (q: string) => {
@@ -100,15 +108,16 @@ export function NewVisitPage() {
       setHostResults([]);
       return;
     }
-    const t = setTimeout(async () => {
+    const requestId = ++hostSearchRequest.current;
+    if (hostSearchTimer.current) window.clearTimeout(hostSearchTimer.current);
+    hostSearchTimer.current = window.setTimeout(async () => {
       try {
         const data = await searchEmployees(q);
-        setHostResults(data);
+        if (requestId === hostSearchRequest.current) setHostResults(data);
       } catch {
         setHostResults([]);
       }
     }, 300);
-    return () => clearTimeout(t);
   }, []);
 
   function handleSelectHost(employee: Employee) {
@@ -356,10 +365,10 @@ export function NewVisitPage() {
           <div className="bg-white border rounded p-6">
             <h2 className="font-medium mb-4">Visit Details</h2>
             
-            <label className="block text-sm font-medium mb-1">Company *</label>
+            <label htmlFor="new-visit-company" className="block text-sm font-medium mb-1">Perusahaan <span aria-hidden="true">*</span></label>
             <div className="relative mb-4">
               <input
-                type="text"
+                 id="new-visit-company" type="text"
                 value={companyQuery}
                 onChange={(e) => handleCompanySearch(e.target.value)}
                 placeholder="Search company..."
@@ -396,7 +405,8 @@ export function NewVisitPage() {
               </button>
               {showNewCompany && (
                 <div className="mt-2 flex gap-2">
-                  <input
+                   <label htmlFor="new-company-name" className="sr-only">Nama perusahaan baru</label><input
+                     id="new-company-name"
                     type="text"
                     value={newCompanyName}
                     onChange={(e) => setNewCompanyName(e.target.value)}
@@ -414,10 +424,10 @@ export function NewVisitPage() {
               )}
             </div>
 
-            <label className="block text-sm font-medium mb-1">Host / Person to Meet *</label>
+             <label htmlFor="new-visit-host" className="block text-sm font-medium mb-1">Host / Orang yang Ditemui <span aria-hidden="true">*</span></label>
             <div className="relative mb-4">
               <input
-                type="text"
+                 id="new-visit-host" type="text"
                 value={hostQuery}
                 onChange={(e) => handleHostSearch(e.target.value)}
                 onFocus={() => hostQuery.length >= 2 && setHostOpen(true)}
@@ -442,17 +452,17 @@ export function NewVisitPage() {
               )}
             </div>
 
-            <label className="block text-sm font-medium mb-1">Purpose *</label>
+             <label htmlFor="new-visit-purpose" className="block text-sm font-medium mb-1">Tujuan Kunjungan <span aria-hidden="true">*</span></label>
             <input
-              type="text"
+               id="new-visit-purpose" type="text"
               value={purpose}
               onChange={(e) => setPurpose(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-4"
             />
 
-            <label className="block text-sm font-medium mb-1">Visit Date *</label>
-            <input
-              type="date"
+             <label htmlFor="new-visit-date" className="block text-sm font-medium mb-1">Tanggal Kunjungan <span aria-hidden="true">*</span></label>
+             <input
+               id="new-visit-date" type="date"
               value={visitDate}
               onChange={(e) => setVisitDate(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-4"
@@ -476,9 +486,9 @@ export function NewVisitPage() {
             <h2 className="font-medium mb-4">Visitors</h2>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Search Existing Visitor</label>
+               <label htmlFor="existing-visitor-search" className="block text-sm font-medium mb-1">Cari Pengunjung Terdaftar</label>
               <input
-                type="text"
+                 id="existing-visitor-search" type="text"
                 value={visitorSearch}
                 onChange={(e) => handleVisitorSearch(e.target.value)}
                 placeholder="Search by name or code..."
@@ -512,14 +522,16 @@ export function NewVisitPage() {
               </button>
               {showNewVisitor && (
                 <div className="mt-2 space-y-2">
-                  <input
+                   <label htmlFor="new-visitor-name" className="sr-only">Nama pengunjung baru</label><input
+                     id="new-visitor-name"
                     type="text"
                     value={newVisitorName}
                     onChange={(e) => { setNewVisitorName(e.target.value); setDuplicateCheck(null); }}
                     placeholder="Visitor name"
                     className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                   />
-                  <input
+                   <label htmlFor="new-visitor-phone" className="sr-only">Nomor telepon pengunjung baru</label><input
+                     id="new-visitor-phone"
                     type="text"
                     value={newVisitorPhone}
                     onChange={(e) => setNewVisitorPhone(e.target.value)}

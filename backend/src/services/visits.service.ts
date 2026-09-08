@@ -649,7 +649,7 @@ export async function getDashboardStats(): Promise<{
     .request()
     .input('today', sql.Date, today)
     .query(`
-      SELECT COUNT(DISTINCT vv.VisitorId) AS total
+       SELECT COUNT(*) AS total
       FROM vms.Visits v
       INNER JOIN vms.VisitVisitors vv ON v.Id = vv.VisitId
       WHERE v.VisitDate = @today
@@ -658,7 +658,7 @@ export async function getDashboardStats(): Promise<{
   const currentlyInsideResult = await pool
     .request()
     .query(`
-      SELECT COUNT(DISTINCT vv.VisitorId) AS total
+       SELECT COUNT(*) AS total
       FROM vms.Visits v
       INNER JOIN vms.VisitVisitors vv ON v.Id = vv.VisitId
       WHERE v.Status = 'IN'
@@ -668,18 +668,20 @@ export async function getDashboardStats(): Promise<{
     .request()
     .input('today', sql.Date, today)
     .query(`
-      SELECT COUNT(*) AS total
-      FROM vms.Visits
-      WHERE VisitDate = @today AND Status = 'OUT'
+       SELECT COUNT(*) AS total
+       FROM vms.Visits v
+       INNER JOIN vms.VisitVisitors vv ON v.Id = vv.VisitId
+       WHERE v.VisitDate = @today AND v.Status = 'OUT'
     `);
 
   const inductionRequiredResult = await pool
     .request()
     .input('today', sql.Date, today)
     .query(`
-      SELECT COUNT(*) AS total
-      FROM vms.Visits
-      WHERE VisitDate = @today AND Status = 'PENDING_INDUCTION'
+       SELECT COUNT(*) AS total
+       FROM vms.Visits v
+       INNER JOIN vms.VisitVisitors vv ON v.Id = vv.VisitId
+       WHERE v.VisitDate = @today AND v.Status = 'PENDING_INDUCTION'
     `);
 
   return {

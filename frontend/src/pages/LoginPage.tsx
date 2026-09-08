@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import logo from '../assets/logobmcbg1.png';
 import { DevFillButton } from '../components/DevFillButton';
@@ -13,7 +13,7 @@ export function LoginPage() {
   const { login, isAuthenticated } = useAuth();
 
   if (isAuthenticated) {
-    navigate('/dashboard');
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -67,6 +67,7 @@ export function LoginPage() {
               value={nip}
               onChange={(e) => setNip(e.target.value)}
               placeholder="Nomor Induk Pegawai"
+              autoComplete="username"
               className="w-full"
               required
               disabled={isSubmitting}
@@ -80,6 +81,7 @@ export function LoginPage() {
               value={birthdate}
               onChange={(e) => setBirthdate(e.target.value)}
               placeholder="DD/MM/YY atau DDMMYY"
+              autoComplete="current-password"
               className="w-full"
               required
               disabled={isSubmitting}

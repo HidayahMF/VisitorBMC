@@ -3,6 +3,8 @@ import { env } from '../config/env';
 
 export interface IHrisEmployee {
   name: string;
+  username: string;
+  isActive: boolean;
 }
 
 /**
@@ -24,6 +26,7 @@ export async function searchEmployees(
   const safeLimit = Math.min(Math.max(1, limit), 50);
   const table = env.HRIS_EMPLOYEE_TABLE;
   const nameCol = env.HRIS_EMPLOYEE_NAME_COL;
+  const nipCol = env.HRIS_EMPLOYEE_NIP_COL;
 
   const pool = await getDbConnection();
   const result = await pool
@@ -31,11 +34,11 @@ export async function searchEmployees(
     .input('q', sql.NVarChar, `%${trimmed}%`)
     .input('limit', sql.Int, safeLimit)
     .query(`
-      SELECT TOP (@limit) RTRIM([${nameCol}]) AS name
+      SELECT TOP (@limit) RTRIM([${nameCol}]) AS name, RTRIM([${nipCol}]) AS username, is_Active AS isActive
       FROM ${table}
-      WHERE RTRIM([${nameCol}]) LIKE @q
+      WHERE RTRIM([${nameCol}]) LIKE @q OR RTRIM([${nipCol}]) LIKE @q
       ORDER BY RTRIM([${nameCol}])
     `);
 
-  return result.recordset.map((row) => ({ name: row.name }));
+  return result.recordset.map((row) => ({ name: row.name, username: row.username, isActive: row.isActive === true || ['1', 'Y', 'A', 'ACTIVE', 'TRUE'].includes(String(row.isActive).toUpperCase()) }));
 }
