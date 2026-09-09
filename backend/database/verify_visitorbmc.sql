@@ -11,5 +11,9 @@ SELECT VisitorId, VisitId, SafetyInductionId, COUNT(*) AS DuplicateCount FROM vm
 SELECT IIF(OBJECT_ID('dbo.hris_Employee','U') IS NOT NULL, 'PASS', 'FAIL') AS HrisTable;
 SELECT fk.name, OBJECT_SCHEMA_NAME(fk.parent_object_id) AS ParentSchema, OBJECT_NAME(fk.parent_object_id) AS ParentTable FROM sys.foreign_keys fk WHERE fk.parent_object_id IN (OBJECT_ID('vms.Users'),OBJECT_ID('vms.Visits'),OBJECT_ID('vms.VisitorInductionRecords'));
 SELECT name, SCHEMA_NAME(schema_id) AS SchemaName FROM sys.tables WHERE name IN ('Users','Companies','Visitors','Visits','VisitVisitors','SafetyInductions','AuditLogs');
+SELECT cc.name, cc.definition,
+       IIF(cc.definition LIKE '%MONITORING%', 'PASS', 'FAIL - run 011_monitoring_role.sql') AS MonitoringRoleConstraint
+FROM sys.check_constraints cc
+WHERE cc.parent_object_id = OBJECT_ID('vms.Users') AND cc.name = 'CK_Users_Role';
 -- Expected: vms objects present, migration columns/indexes present, duplicate query empty,
 -- dbo.hris_Employee present, and no VisitorBMC table unexpectedly owned by dbo.

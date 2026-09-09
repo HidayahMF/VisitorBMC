@@ -36,7 +36,7 @@ export async function listManagedUsers(): Promise<IManagedUser[]> {
   return result.recordset.map((row) => ({ id: row.Id, username: row.Username, name: row.Name, role: row.Role, isActive: !!row.UserIsActive, employeeActive: isActiveValue(row.EmployeeIsActive) }));
 }
 
-export async function addManagedUser(username: string, role: 'ADMIN' | 'SECURITY', actorId?: number, ipAddress?: string): Promise<IManagedUser> {
+export async function addManagedUser(username: string, role: 'ADMIN' | 'SECURITY' | 'MONITORING', actorId?: number, ipAddress?: string): Promise<IManagedUser> {
   const pool = await getDbConnection();
   const employee = await pool.request().input('username', sql.VarChar(50), username.trim()).query(`SELECT TOP 1 RTRIM([${env.HRIS_EMPLOYEE_NIP_COL}]) AS Username, RTRIM([${env.HRIS_EMPLOYEE_NAME_COL}]) AS Name, is_Active AS EmployeeActive FROM ${env.HRIS_EMPLOYEE_TABLE} WHERE RTRIM([${env.HRIS_EMPLOYEE_NIP_COL}])=@username`);
   const row = employee.recordset[0];
@@ -50,7 +50,7 @@ export async function addManagedUser(username: string, role: 'ADMIN' | 'SECURITY
   return { id: user.Id, username: user.Username, name: user.Name, role: user.Role, isActive: !!user.IsActive, employeeActive: true };
 }
 
-export async function updateManagedUser(id: number, changes: { role?: 'ADMIN' | 'SECURITY'; isActive?: boolean }, actorId: number, ipAddress?: string): Promise<IManagedUser | null> {
+export async function updateManagedUser(id: number, changes: { role?: 'ADMIN' | 'SECURITY' | 'MONITORING'; isActive?: boolean }, actorId: number, ipAddress?: string): Promise<IManagedUser | null> {
   if (id === actorId && changes.isActive === false) throw new AppError('You cannot deactivate your own account', 400);
   const pool = await getDbConnection(); const current = await pool.request().input('id', sql.Int, id).query('SELECT Id, Role, IsActive FROM vms.Users WHERE Id=@id');
   if (!current.recordset[0]) return null;

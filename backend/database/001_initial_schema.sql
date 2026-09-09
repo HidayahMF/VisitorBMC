@@ -31,7 +31,7 @@ CREATE TABLE vms.Users (
 
     CONSTRAINT PK_Users               PRIMARY KEY (Id),
     CONSTRAINT UQ_Users_Username      UNIQUE (Username),
-    CONSTRAINT CK_Users_Role          CHECK (Role IN ('ADMIN', 'SECURITY'))
+    CONSTRAINT CK_Users_Role          CHECK (Role IN ('ADMIN', 'SECURITY', 'MONITORING'))
 );
 GO
 

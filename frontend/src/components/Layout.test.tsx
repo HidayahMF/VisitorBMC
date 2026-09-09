@@ -9,7 +9,7 @@ vi.mock('../i18n/LanguageContext', () => ({ useLanguage: () => ({ language: 'id'
 vi.mock('./ConnectionStatus', () => ({ ConnectionStatus: () => null }));
 vi.mock('./ConfirmationHost', () => ({ ConfirmationHost: () => null }));
 
-function renderLayout(role: 'ADMIN' | 'SECURITY', path = '/dashboard') {
+function renderLayout(role: 'ADMIN' | 'SECURITY' | 'MONITORING', path = '/dashboard') {
   mockAuth.mockReturnValue({ user: { name: 'Hidayah Muhammad Fadillah', role }, logout: vi.fn() });
   return render(<MemoryRouter initialEntries={[path]}><Routes><Route path="*" element={<Layout><p>Isi</p></Layout>} /></Routes></MemoryRouter>);
 }
@@ -31,9 +31,17 @@ describe('Layout navigation', () => {
     expect(screen.getByText('Administrasi')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Administrasi'));
     expect(screen.getByText('Konten Safety')).toBeInTheDocument();
-    expect(screen.getByText('Laporan')).toBeInTheDocument();
+    expect(screen.queryByText('Laporan')).not.toBeInTheDocument();
     expect(screen.queryByText('Pengguna')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTitle('Hidayah Muhammad Fadillah'));
     expect(screen.getByText('Keluar')).toBeInTheDocument();
+  });
+
+  it('gives Monitoring the same operational administration access as Security', () => {
+    renderLayout('MONITORING');
+    fireEvent.click(screen.getByText('Administrasi'));
+    expect(screen.getByText('Konten Safety')).toBeInTheDocument();
+    expect(screen.queryByText('Laporan')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pengguna')).not.toBeInTheDocument();
   });
 });

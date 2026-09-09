@@ -231,6 +231,26 @@ export async function getVisitById(id: number): Promise<IVisitDetail | null> {
       WHERE vv.VisitId = @visitId
       ORDER BY vis.Id
     `);
+  if (visitorsResult.recordset.length === 0) {
+    return {
+      Id: visitRow.Id,
+      VisitCode: visitRow.VisitCode,
+      HostName: visitRow.HostName,
+      Purpose: visitRow.Purpose,
+      VisitDate: visitRow.VisitDate,
+      CheckInTime: visitRow.CheckInTime || null,
+      CheckOutTime: visitRow.CheckOutTime || null,
+      Status: visitRow.Status,
+      CreatedBy: visitRow.CreatedBy,
+      CheckedInBy: visitRow.CheckedInBy || null,
+      CheckedOutBy: visitRow.CheckedOutBy || null,
+      CreatedAt: visitRow.CreatedAt,
+      UpdatedAt: visitRow.UpdatedAt,
+      Company: { Id: visitRow.CompanyId, CompanyName: visitRow.CompanyName },
+      Visitors: [],
+      SafetySummary: { totalVisitors: 0, cleared: 0, requiresInduction: 0 },
+    };
+  }
   const clearance = await checkVisitorSafetyClearance(
     visitorsResult.recordset.map((row) => row.Id),
     visitRow.CompanyId,
@@ -612,8 +632,8 @@ export async function deleteVisit(id: number): Promise<boolean> {
     }
 
     await transaction.request().input('id', sql.Int, id).query('DELETE FROM vms.VisitorInductionRecords WHERE VisitId = @id');
-    await transaction.request().input('id', sql.Int, id).query("DELETE FROM vms.AuditLogs WHERE EntityType = 'Visit' AND EntityId = @id");
     await transaction.request().input('id', sql.Int, id).query('DELETE FROM vms.VisitVisitors WHERE VisitId = @id');
+    await transaction.request().input('id', sql.Int, id).query("DELETE FROM vms.AuditLogs WHERE EntityType = 'Visit' AND EntityId = @id");
     await transaction.request().input('id', sql.Int, id).query('DELETE FROM vms.Visits WHERE Id = @id');
 
     await transaction.commit();

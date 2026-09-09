@@ -20,7 +20,7 @@ export function VisitorsPage() {
   useEffect(() => { void loadCompanies(); }, []); useEffect(() => { void load(); }, [search, filterCompany, page]);
   async function loadCompanies() { try { const result = await listCompanies({ active: true, limit: 100 }); setCompanies(result.data); } catch (cause) { setError(userFacingError(cause, language)); } }
   async function load() { setLoading(true); setError(''); try { const result = await listVisitors({ q: search || undefined, companyId: filterCompany, page, limit: 20 }); setVisitors(result.data); setTotal(result.pagination.total); } catch (cause) { setError(userFacingError(cause, language)); } finally { setLoading(false); } }
-  async function handleDelete(visitor: Visitor) { if (!await confirmAction(`${t('common.delete')} "${visitor.visitorName}"?`)) return; try { await deleteVisitor(visitor.id); await load(); } catch (cause) { setError(userFacingError(cause, language)); } }
+  async function handleDelete(visitor: Visitor) { if (!await confirmAction(`${t('visitors.deleteConfirm')}\n${visitor.visitorName}\n${t('visitors.deleteMessage')}`, { confirmLabel: t('common.delete'), cancelLabel: t('common.cancel') })) return; try { await deleteVisitor(visitor.id); await load(); } catch (cause) { setError(userFacingError(cause, language)); } }
   const hasFilters = Boolean(search.trim() || filterCompany !== undefined); const countLabel = total === 1 ? t('visitors.visitorCount') : t('visitors.visitorsCount');
   const reset = () => { setSearch(''); setFilterCompany(undefined); setPage(1); };
   const emptyMessage = hasFilters ? `${t('visitors.noSearchResults')} "${search.trim() || t('visitors.company')}".` : t('visitors.noVisitors');

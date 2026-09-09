@@ -1,4 +1,5 @@
 import { Icon } from './Icon';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface DevFillButtonProps {
   onClick: () => void | Promise<void>;
@@ -22,16 +23,17 @@ export function DevFillButton({ onClick, label = 'Isi data contoh' }: DevFillBut
   );
 }
 
-export function DevDeleteButton({ onClick, label = 'Hapus (dev)' }: DevDeleteButtonProps) {
+export function DevDeleteButton({ onClick, label = 'Delete' }: DevDeleteButtonProps) {
+  const { t } = useLanguage();
   if (!import.meta.env.DEV) return null;
 
   return (
     <button
       type="button"
-      className="text-xs px-3 py-1 border border-red-200 rounded text-red-600 hover:bg-red-50"
+      className="danger-button"
       onClick={() => void onClick()}
     >
-      {label}
+      {label === 'Delete' ? t('common.delete') : label}
     </button>
   );
 }

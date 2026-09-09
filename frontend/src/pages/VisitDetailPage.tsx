@@ -78,8 +78,8 @@ export function VisitDetailPage() {
     try {
       await deleteVisit(Number(id));
       navigate('/visits');
-    } catch {
-      setError('Gagal menghapus kunjungan.');
+    } catch (cause) {
+      setError(userFacingError(cause, language));
     }
   }
 

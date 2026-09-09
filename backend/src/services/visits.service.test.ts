@@ -36,7 +36,7 @@ vi.mock('./safety-clearance.service', () => ({
   ),
 }));
 
-import { checkInVisit, checkOutVisit, getActiveVisits, getDashboardStats } from '../services/visits.service';
+import { checkInVisit, checkOutVisit, getActiveVisits, getDashboardStats, getVisitById } from '../services/visits.service';
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -81,6 +81,19 @@ describe('checkInVisit', () => {
 
     const auditCall = mockQuery.mock.calls[2][0] as string;
     expect(auditCall).toContain('INSERT INTO vms.AuditLogs');
+  });
+});
+
+describe('getVisitById', () => {
+  it('returns an empty visitor summary for a visit with no visitors', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ recordset: [{ Id: 17, VisitCode: 'VIS-20260909-001', CompanyId: 2, CompanyName: 'Bakrie Autoparts', HostName: 'Hidayah Muhammad Fadillah', Purpose: 'Meeting', VisitDate: new Date(), Status: 'READY_FOR_CHECKIN', CreatedBy: 1, CreatedAt: new Date(), UpdatedAt: null }] })
+      .mockResolvedValueOnce({ recordset: [] });
+
+    const result = await getVisitById(17);
+
+    expect(result?.Visitors).toEqual([]);
+    expect(result?.SafetySummary).toEqual({ totalVisitors: 0, cleared: 0, requiresInduction: 0 });
   });
 });
 

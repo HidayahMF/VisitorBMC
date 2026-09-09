@@ -5,10 +5,12 @@ import { VisitDetailPage } from './VisitDetailPage';
 import { AuthProvider } from '../context/AuthContext';
 import { LanguageProvider } from '../i18n/LanguageContext';
 
-const { mockGetVisit, mockCheckIn, mockCheckOut } = vi.hoisted(() => ({
+const { mockGetVisit, mockCheckIn, mockCheckOut, mockDeleteVisit, mockConfirmAction } = vi.hoisted(() => ({
   mockGetVisit: vi.fn(),
   mockCheckIn: vi.fn(),
   mockCheckOut: vi.fn(),
+  mockDeleteVisit: vi.fn(),
+  mockConfirmAction: vi.fn(),
 }));
 
 const { mockIssueToken } = vi.hoisted(() => ({ mockIssueToken: vi.fn() }));
@@ -17,6 +19,7 @@ vi.mock('../api/visits.api', () => ({
   getVisit: (id: number) => mockGetVisit(id),
   checkInVisit: (id: number) => mockCheckIn(id),
   checkOutVisit: (id: number) => mockCheckOut(id),
+  deleteVisit: (id: number) => mockDeleteVisit(id),
 }));
 vi.mock('../api/safety-inductions.api', () => ({ issueInductionToken: (id: number) => mockIssueToken(id) }));
 
@@ -27,7 +30,7 @@ vi.mock('../api/client', () => ({
 
 vi.mock('../components/ConfirmationHost', () => ({
   ConfirmationHost: () => null,
-  confirmAction: () => Promise.resolve(true),
+  confirmAction: mockConfirmAction,
 }));
 
 function buildVisit(overrides: Partial<Record<string, unknown>> = {}) {
@@ -72,6 +75,8 @@ function renderPage(status = 'READY_FOR_CHECKIN', visitors?: unknown[]) {
 describe('VisitDetailPage', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockConfirmAction.mockResolvedValue(true);
+    mockDeleteVisit.mockResolvedValue(undefined);
   });
 
   it('renders visit details', async () => {
@@ -86,6 +91,13 @@ describe('VisitDetailPage', () => {
     await screen.findByText('VIS-20260907-001');
     expect(screen.getByText('Masuk')).toBeInTheDocument();
     expect(screen.getAllByText('Keluar')).toHaveLength(1);
+  });
+
+  it('deletes a visit from the Admin detail action', async () => {
+    renderPage();
+    await screen.findByText('VIS-20260907-001');
+    fireEvent.click(screen.getByRole('button', { name: 'Hapus' }));
+    await waitFor(() => expect(mockDeleteVisit).toHaveBeenCalledWith(1));
   });
 
   it('calls checkInVisit and refreshes status', async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listVisits } from '../api/visits.api';
+import { deleteVisit, listVisits } from '../api/visits.api';
 import { listCompanies } from '../api/companies.api';
 import { Layout } from '../components/Layout';
 import { type Visit, type VisitStatus } from '../types/visit';
@@ -9,9 +9,13 @@ import { ErrorState, EmptyState } from '../components/AsyncState';
 import { useLanguage } from '../i18n/LanguageContext';
 import { userFacingError } from '../api/client';
 import { visitStatusLabel } from '../utils/visit-status';
+import { useAuth } from '../context/AuthContext';
+import { DevDeleteButton } from '../components/DevFillButton';
+import { confirmAction } from '../components/ConfirmationHost';
 
 export function VisitsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { language, t, formatDate } = useLanguage();
   const [visits, setVisits] = useState<Visit[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -39,6 +43,11 @@ export function VisitsPage() {
     } catch (cause) { setError(userFacingError(cause, language)); }
     finally { setLoading(false); }
   }
+  async function handleDelete(visit: Visit) {
+    if (!await confirmAction(`${t('common.delete')} ${visit.VisitCode}?`, { confirmLabel: t('common.delete'), cancelLabel: t('common.cancel') })) return;
+    try { await deleteVisit(visit.Id); await load(); }
+    catch (cause) { setError(userFacingError(cause, language)); }
+  }
   const hasFilters = Boolean(search.trim() || filterCompany !== undefined || filterStatus || filterDate);
   const reset = () => { setSearch(''); setFilterCompany(undefined); setFilterStatus(''); setFilterDate(''); setPage(1); };
   const countLabel = total === 1 ? t('visits.visit') : t('visits.visits');
@@ -57,8 +66,8 @@ export function VisitsPage() {
     {error ? <ErrorState message={error} onRetry={load} /> : loading ? <p className="page-loading" role="status">{t('common.loading')}</p> : <>
       <p className="result-count visits-result-count">{total} {countLabel}</p>
       {!visits.length ? <div className="visitor-empty"><EmptyState message={emptyMessage} />{hasFilters && <button type="button" className="reset-filter-button" onClick={reset}>{t('visits.reset')}</button>}</div> : <>
-        <div className="visits-table-wrap"><table className="visits-table"><thead><tr><th>{t('visits.code')}</th><th>{t('visits.date')}</th><th>{t('visits.company')}</th><th>{t('visits.host')}</th><th>{t('visits.visitors')}</th><th>{t('visits.status')}</th><th>{t('visits.action')}</th></tr></thead><tbody>{visits.map(visit => <tr key={visit.Id}><td><button type="button" className="visit-code-link" onClick={() => navigate(`/visits/${visit.Id}`)}>{visit.VisitCode}</button></td><td>{formatDate(visit.VisitDate)}</td><td className="table-primary-text">{visit.CompanyName}</td><td>{visit.HostName}</td><td>{visit.VisitorCount ?? '—'} {t('visits.visitors')}</td><td>{status(visit.Status)}</td><td><button type="button" className="row-action" onClick={() => navigate(`/visits/${visit.Id}`)}>{t('visits.view')}</button></td></tr>)}</tbody></table></div>
-        <div className="mobile-record-list visits-mobile-list">{visits.map(visit => <article key={visit.Id} className="mobile-record-card"><div className="mobile-record-heading"><button type="button" className="visit-code-link" onClick={() => navigate(`/visits/${visit.Id}`)}>{visit.VisitCode}</button>{status(visit.Status)}</div><dl className="mobile-record-details"><div><dt>{t('visits.date')}</dt><dd>{formatDate(visit.VisitDate)}</dd></div><div><dt>{t('visits.company')}</dt><dd>{visit.CompanyName}</dd></div><div><dt>{t('visits.host')}</dt><dd>{visit.HostName}</dd></div><div><dt>{t('visits.visitors')}</dt><dd>{visit.VisitorCount ?? '—'} {t('visits.visitors')}</dd></div></dl><button type="button" className="row-action" onClick={() => navigate(`/visits/${visit.Id}`)}>{t('visits.view')}</button></article>)}</div>
+       <div className="visits-table-wrap"><table className="visits-table"><thead><tr><th>{t('visits.code')}</th><th>{t('visits.date')}</th><th>{t('visits.company')}</th><th>{t('visits.host')}</th><th>{t('visits.visitors')}</th><th>{t('visits.status')}</th><th>{t('visits.action')}</th></tr></thead><tbody>{visits.map(visit => <tr key={visit.Id}><td><button type="button" className="visit-code-link" onClick={() => navigate(`/visits/${visit.Id}`)}>{visit.VisitCode}</button></td><td>{formatDate(visit.VisitDate)}</td><td className="table-primary-text">{visit.CompanyName}</td><td>{visit.HostName}</td><td>{visit.VisitorCount ?? '—'} {t('visits.visitors')}</td><td>{status(visit.Status)}</td><td className="text-right"><div className="row-actions"><button type="button" className="row-action" onClick={() => navigate(`/visits/${visit.Id}`)}>{t('visits.view')}</button>{user?.role === 'ADMIN' && <DevDeleteButton onClick={() => handleDelete(visit)} />}</div></td></tr>)}</tbody></table></div>
+         <div className="mobile-record-list visits-mobile-list">{visits.map(visit => <article key={visit.Id} className="mobile-record-card"><div className="mobile-record-heading"><button type="button" className="visit-code-link" onClick={() => navigate(`/visits/${visit.Id}`)}>{visit.VisitCode}</button>{status(visit.Status)}</div><dl className="mobile-record-details"><div><dt>{t('visits.date')}</dt><dd>{formatDate(visit.VisitDate)}</dd></div><div><dt>{t('visits.company')}</dt><dd>{visit.CompanyName}</dd></div><div><dt>{t('visits.host')}</dt><dd>{visit.HostName}</dd></div><div><dt>{t('visits.visitors')}</dt><dd>{visit.VisitorCount ?? '—'} {t('visits.visitors')}</dd></div></dl><div className="mobile-record-actions"><button type="button" className="row-action" onClick={() => navigate(`/visits/${visit.Id}`)}>{t('visits.view')}</button>{user?.role === 'ADMIN' && <DevDeleteButton onClick={() => handleDelete(visit)} />}</div></article>)}</div>
       </>}
     </>}</div></Layout>;
 }
