@@ -6,6 +6,10 @@ import fs from 'fs/promises';
 import path from 'path';
 import { env } from '../config/env';
 import crypto from 'crypto';
+import { findCompaniesBySearch } from './companies.service';
+import { createVisitor, searchVisitors } from './visitors.service';
+import { createVisit } from './visits.service';
+import { searchEmployees } from './hris.service';
 
 export interface ISafetyInduction {
   Id: number;
@@ -74,6 +78,40 @@ export async function completeInductionByToken(token: string, visitorId: number,
   return { result, workflow: await getPublicInductionWorkflow(visitId) };
 }
 
+export async function completeGroupInductionByToken(
+  token: string,
+  visitorIds: number[],
+  acknowledged: boolean,
+  ipAddress?: string,
+): Promise<{ workflow: PublicInductionWorkflow }> {
+  if (!acknowledged || !Array.isArray(visitorIds) || visitorIds.length === 0) {
+    throw new AppError('All visitors must be acknowledged', 400);
+  }
+
+  const visitId = await visitIdFromToken(token);
+  const workflow = await getPublicInductionWorkflow(visitId);
+  const expectedIds = workflow.visitors.map((visitor) => visitor.visitorId).sort((a, b) => a - b);
+  const submittedIds = [...new Set(visitorIds)].sort((a, b) => a - b);
+  if (expectedIds.length !== submittedIds.length || expectedIds.some((id, index) => id !== submittedIds[index])) {
+    throw new AppError('The visitor list does not match this visit', 400);
+  }
+
+  for (const visitorId of submittedIds) {
+    await completeInduction({ visitorId, visitId, acknowledged: true, ipAddress }, null);
+  }
+
+  const pool = await getDbConnection();
+  await pool.request()
+    .input('visitId', sql.Int, visitId)
+    .query(`
+      UPDATE vms.Visits
+      SET Status = 'IN', CheckInTime = COALESCE(CheckInTime, SYSUTCDATETIME()), UpdatedAt = SYSUTCDATETIME()
+      WHERE Id = @visitId AND Status IN ('PENDING_INDUCTION', 'READY_FOR_CHECKIN')
+    `);
+
+  return { workflow: await getPublicInductionWorkflow(visitId) };
+}
+
 export async function getPublicInductionWorkflow(visitId: number): Promise<PublicInductionWorkflow> {
   const pool = await getDbConnection();
   const visitResult = await pool.request().input('visitId', sql.Int, visitId).query(`
@@ -128,11 +166,93 @@ export interface ICompleteInductionParams {
   ipAddress?: string;
 }
 
+export interface IPublicRegistrationParams {
+  companyName: string;
+  hostName: string;
+  purpose: string;
+  visitors: Array<{ name: string; phoneNumber?: string }>;
+  ipAddress?: string;
+}
+
+export interface IPublicRegistrationResult {
+  visitId: number;
+  visitCode: string;
+  token: string;
+  expiresAt: Date;
+  visitors: Array<{ id: number; name: string }>;
+}
+
 export interface IInductionCompletionResult {
   recordId: number;
   completedAt: Date;
   acknowledgedAt: Date;
   validUntil: Date;
+}
+
+export async function createPublicVisit(
+  params: IPublicRegistrationParams,
+): Promise<IPublicRegistrationResult> {
+  const companyName = params.companyName?.trim();
+  const hostName = params.hostName?.trim();
+  const purpose = params.purpose?.trim();
+  const visitors = params.visitors
+    .map((visitor) => ({ name: visitor.name.trim(), phoneNumber: visitor.phoneNumber?.trim() }))
+    .filter((visitor) => visitor.name);
+
+  if (!companyName || !hostName || !purpose || visitors.length === 0 || visitors.length > 20) {
+    throw new AppError('Company, host, purpose, and 1-20 visitors are required', 400);
+  }
+
+  const hostMatches = await searchEmployees(hostName, 50);
+  const registeredHost = hostMatches.find((employee) => employee.name.toLowerCase() === hostName.toLowerCase() && employee.isActive);
+  if (!registeredHost) {
+    throw new AppError('Host must be selected from the active BMC employee list', 400);
+  }
+
+  const matches = await findCompaniesBySearch(companyName, 20);
+  const existing = matches.find((company) => company.IsActive && company.CompanyName.toLowerCase() === companyName.toLowerCase());
+  if (!existing) throw new AppError('Perusahaan harus dipilih dari daftar perusahaan BMC', 400);
+  const company = existing;
+  const createdVisitors: Array<{ id: number; name: string }> = [];
+
+  for (const visitor of visitors) {
+    const existingVisitors = await searchVisitors(visitor.name, 20);
+    const existing = existingVisitors.find((candidate) =>
+      candidate.CompanyId === company.Id && candidate.VisitorName.toLowerCase() === visitor.name.toLowerCase(),
+    );
+    if (existing) {
+      createdVisitors.push({ id: existing.Id, name: existing.VisitorName });
+      continue;
+    }
+    const created = await createVisitor({ visitorName: visitor.name, companyId: company.Id, phoneNumber: visitor.phoneNumber || undefined });
+    createdVisitors.push({ id: created.visitor.Id, name: created.visitor.VisitorName });
+  }
+
+  const pool = await getDbConnection();
+  const userResult = await pool.request().query(`
+    SELECT TOP 1 Id FROM vms.Users WHERE IsActive = 1 AND Role IN ('SECURITY', 'ADMIN') ORDER BY Id
+  `);
+  const systemUserId = userResult.recordset[0]?.Id;
+  if (!systemUserId) throw new AppError('No active security operator is configured', 503);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const visit = await createVisit({
+    companyId: company.Id,
+    hostName,
+    purpose,
+    visitDate: today,
+    visitorIds: createdVisitors.map((visitor) => visitor.id),
+    ipAddress: params.ipAddress,
+  }, systemUserId);
+  const access = await issuePublicInductionToken(visit.Id);
+
+  return {
+    visitId: visit.Id,
+    visitCode: visit.VisitCode,
+    token: access.token,
+    expiresAt: access.expiresAt,
+    visitors: createdVisitors,
+  };
 }
 
 export async function getActiveInductionWithContents(): Promise<IInductionContentResponse> {

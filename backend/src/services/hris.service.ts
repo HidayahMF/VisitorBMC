@@ -42,3 +42,21 @@ export async function searchEmployees(
 
   return result.recordset.map((row) => ({ name: row.name, username: row.username, isActive: row.isActive === true || ['1', 'Y', 'A', 'ACTIVE', 'TRUE'].includes(String(row.isActive).toUpperCase()) }));
 }
+
+export async function listEmployees(limit: number = 50): Promise<IHrisEmployee[]> {
+  const safeLimit = Math.min(Math.max(1, limit), 100);
+  const pool = await getDbConnection();
+  const result = await pool.request()
+    .input('limit', sql.Int, safeLimit)
+    .query(`
+      SELECT TOP (@limit) RTRIM([${env.HRIS_EMPLOYEE_NAME_COL}]) AS name,
+             RTRIM([${env.HRIS_EMPLOYEE_NIP_COL}]) AS username,
+             is_Active AS isActive
+      FROM ${env.HRIS_EMPLOYEE_TABLE}
+      ORDER BY RTRIM([${env.HRIS_EMPLOYEE_NAME_COL}])
+    `);
+
+  return result.recordset
+    .filter((row) => row.isActive === true || ['1', 'Y', 'A', 'ACTIVE', 'TRUE'].includes(String(row.isActive).toUpperCase()))
+    .map((row) => ({ name: row.name, username: row.username, isActive: true }));
+}

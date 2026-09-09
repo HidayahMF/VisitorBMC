@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getActiveInductionContents, completeInduction, getInductionWorkflow, type InductionWorkflow } from '../api/safety-inductions.api';
+import { getActiveInductionContents, completeGroupInduction, getInductionWorkflow, type InductionWorkflow } from '../api/safety-inductions.api';
 import { type InductionContent, type InductionConfig } from '../types/induction';
 import { Icon } from '../components/Icon';
 import { DevFillButton } from '../components/DevFillButton';
@@ -21,9 +21,7 @@ export function SafetyInductionPage() {
   const [contents, setContents] = useState<InductionContent[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [acknowledged, setAcknowledged] = useState(false);
-  const [visitorId, setVisitorId] = useState<number | null>(null);
   const [workflow, setWorkflow] = useState<InductionWorkflow | null>(null);
-  const [activeVisitorName, setActiveVisitorName] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -41,9 +39,6 @@ export function SafetyInductionPage() {
       setContents(data.contents);
       setWorkflow(workflowData);
 
-      const next = workflowData.visitors.find((item) => item.needsInduction);
-      setVisitorId(next?.visitorId ?? null);
-      setActiveVisitorName(next?.visitorName ?? '');
     } catch {
       setError('Failed to load induction content');
     }
@@ -51,26 +46,18 @@ export function SafetyInductionPage() {
   }
 
   async function handleComplete() {
-    if (!visitorId || !token || !workflow || submitting) return;
+    if (!token || !workflow || submitting) return;
 
     setSubmitting(true);
     setError('');
 
     try {
-      await completeInduction({
+      await completeGroupInduction({
         token,
-        visitorId,
-        acknowledged: true,
+        visitorIds: workflow.visitors.map((visitor) => visitor.visitorId),
+        acknowledged,
       });
-      const refreshed = await getInductionWorkflow(token);
-      setWorkflow(refreshed);
-      const next = refreshed.visitors.find((item) => item.needsInduction);
-      if (next) {
-        setVisitorId(next.visitorId);
-        setActiveVisitorName(next.visitorName);
-        setCurrentIndex(0);
-        setAcknowledged(false);
-      } else setCompleted(true);
+      setCompleted(true);
     } catch {
       setError('Failed to submit acknowledgement');
     }
@@ -108,7 +95,7 @@ export function SafetyInductionPage() {
             You have successfully completed the Safety Induction.
           </p>
           <p className="text-xs text-gray-500 mb-4">
-            Please inform the security personnel to proceed with check-in.
+             Kunjungan grup sudah tercatat masuk. Saat meninggalkan area, silakan informasikan Security untuk melakukan checkout.
           </p>
           <button
             onClick={() => navigate(-1)}
@@ -144,7 +131,7 @@ export function SafetyInductionPage() {
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="font-bold text-blue-900">Safety Induction</h1>
-            {activeVisitorName && <p className="text-sm text-gray-700">Pengunjung: <strong>{activeVisitorName}</strong></p>}
+             <p className="text-sm text-gray-700">Grup visitor: <strong>{workflow?.visitors.length ?? 0} orang</strong></p>
             {induction && (
               <p className="text-xs text-gray-500">{induction.title} — V{induction.version}</p>
             )}
@@ -158,9 +145,7 @@ export function SafetyInductionPage() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="bg-white border rounded mb-4">
           <div className="px-4 py-3 border-b bg-gray-50">
-            <p className="text-sm font-medium">
-              Content {currentIndex + 1} of {contents.length}
-            </p>
+             <p className="text-sm font-medium">Safety Induction untuk seluruh grup</p>
           </div>
           <div className="p-6">
             <h2 className="text-lg font-bold mb-2">{currentContent.Title || `Content ${currentIndex + 1}`}</h2>
@@ -183,7 +168,7 @@ export function SafetyInductionPage() {
               )}
             </div>
 
-            <div className="flex items-center justify-between">
+             <div className="flex items-center justify-between">
               <button
                 onClick={() => setCurrentIndex(i => i - 1)}
                 disabled={currentIndex === 0}
@@ -202,10 +187,10 @@ export function SafetyInductionPage() {
           </div>
         </div>
 
-        {isLast && (
+         {isLast && (
           <div className="bg-white border rounded p-6">
              <div className="flex items-center justify-between gap-3 mb-4">
-               <h3 className="font-medium mb-0">Acknowledgement</h3>
+                <h3 className="font-medium mb-0">Konfirmasi seluruh visitor</h3>
                <DevFillButton onClick={() => setAcknowledged(true)} label="Centang contoh" />
              </div>
             <label className="flex items-start gap-3 cursor-pointer mb-4">
@@ -217,9 +202,7 @@ export function SafetyInductionPage() {
                  className="mt-1"
                  aria-describedby="induction-acknowledgement-help"
                />
-               <span id="induction-acknowledgement-help" className="text-sm text-gray-700">
-                Saya sudah melihat, membaca/menonton, dan memahami Safety Induction yang diberikan.
-              </span>
+                <span id="induction-acknowledgement-help" className="text-sm text-gray-700">Saya memastikan seluruh visitor dalam daftar sudah melihat, membaca/menonton, dan memahami Safety Induction yang diberikan.</span>
             </label>
 
             {error && (
@@ -231,7 +214,7 @@ export function SafetyInductionPage() {
               disabled={!acknowledged || submitting}
               className="w-full text-sm px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 disabled:opacity-40"
             >
-              {submitting ? 'Submitting...' : 'Complete Induction'}
+               {submitting ? 'Menyimpan...' : 'Submit dan Check-in Grup'}
             </button>
           </div>
         )}

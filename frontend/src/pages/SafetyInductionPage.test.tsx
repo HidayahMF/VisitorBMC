@@ -3,16 +3,16 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { SafetyInductionPage } from './SafetyInductionPage';
 
-const { mockGetActiveContents, mockCompleteInduction, mockGetWorkflow } = vi.hoisted(() => ({
+const { mockGetActiveContents, mockCompleteGroupInduction, mockGetWorkflow } = vi.hoisted(() => ({
   mockGetActiveContents: vi.fn(),
-  mockCompleteInduction: vi.fn(),
+  mockCompleteGroupInduction: vi.fn(),
   mockGetWorkflow: vi.fn(),
 }));
 
 vi.mock('../api/safety-inductions.api', () => ({
   getActiveInductionContents: () => mockGetActiveContents(),
   getInductionWorkflow: () => mockGetWorkflow(),
-  completeInduction: (data: unknown) => mockCompleteInduction(data),
+  completeGroupInduction: (data: unknown) => mockCompleteGroupInduction(data),
   getVisitorInductionHistory: vi.fn(() => Promise.resolve([])),
 }));
 
@@ -51,7 +51,7 @@ describe('SafetyInductionPage', () => {
   it('shows the first content item after loading', async () => {
     renderPage();
     expect(await screen.findByText('Intro Video')).toBeInTheDocument();
-    expect(screen.getByText('Content 1 of 2')).toBeInTheDocument();
+    expect(screen.getByText('Safety Induction untuk seluruh grup')).toBeInTheDocument();
     expect(screen.getByText('0 / 1 Pengunjung selesai')).toBeInTheDocument();
   });
 
@@ -60,17 +60,17 @@ describe('SafetyInductionPage', () => {
     await screen.findByText('Intro Video');
     fireEvent.click(screen.getByText('Next'));
     expect(await screen.findByText('Emergency Exits')).toBeInTheDocument();
-    expect(screen.getByText('Content 2 of 2')).toBeInTheDocument();
+    expect(screen.getByText('Safety Induction untuk seluruh grup')).toBeInTheDocument();
   });
 
   it('shows acknowledgement only after last content', async () => {
     renderPage();
     await screen.findByText('Intro Video');
     // Acknowledgement not visible on first content
-    expect(screen.queryByText(/^Saya sudah melihat/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Saya memastikan seluruh visitor/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('Next'));
     await screen.findByText('Emergency Exits');
-    expect(screen.getByText(/^Saya sudah melihat/)).toBeInTheDocument();
+    expect(screen.getByText(/^Saya memastikan seluruh visitor/)).toBeInTheDocument();
   });
 
   it('disables Complete until acknowledged', async () => {
@@ -78,14 +78,14 @@ describe('SafetyInductionPage', () => {
     await screen.findByText('Intro Video');
     fireEvent.click(screen.getByText('Next'));
     await screen.findByText('Emergency Exits');
-    const button = screen.getByText('Complete Induction') as HTMLButtonElement;
+    const button = screen.getByText('Submit dan Check-in Grup') as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     fireEvent.click(screen.getByRole('checkbox'));
     await waitFor(() => expect(button.disabled).toBe(false));
   });
 
   it('submits and shows completion screen', async () => {
-    mockCompleteInduction.mockResolvedValue({ recordId: 10, validUntil: '2027-03-07' });
+    mockCompleteGroupInduction.mockResolvedValue({ workflow: { status: 'IN' } });
     mockGetWorkflow.mockResolvedValueOnce({ visitId: 1, visitCode: 'VIS-1', visitors: [{ visitorId: 7, visitorName: 'Andi', safetyStatus: 'REQUIRED', needsInduction: true }], requiredCount: 1, completedCount: 0, remainingCount: 1, nextVisitorId: 7, status: 'PENDING_INDUCTION' });
     mockGetWorkflow.mockResolvedValueOnce({ visitId: 1, visitCode: 'VIS-1', visitors: [{ visitorId: 7, visitorName: 'Andi', safetyStatus: 'VALID', needsInduction: false }], requiredCount: 0, completedCount: 1, remainingCount: 0, nextVisitorId: null, status: 'READY_FOR_CHECKIN' });
     renderPage();
@@ -93,13 +93,13 @@ describe('SafetyInductionPage', () => {
     fireEvent.click(screen.getByText('Next'));
     await screen.findByText('Emergency Exits');
     fireEvent.click(screen.getByRole('checkbox'));
-    const button = screen.getByText('Complete Induction') as HTMLButtonElement;
+    const button = screen.getByText('Submit dan Check-in Grup') as HTMLButtonElement;
     await waitFor(() => expect(button).toBeEnabled());
     fireEvent.click(button);
     expect(await screen.findByText('Induction Complete')).toBeInTheDocument();
-      expect(mockCompleteInduction).toHaveBeenCalledWith({
+      expect(mockCompleteGroupInduction).toHaveBeenCalledWith({
       token: 'secure-test-token',
-      visitorId: 7,
+      visitorIds: [7],
       acknowledged: true,
     });
   });

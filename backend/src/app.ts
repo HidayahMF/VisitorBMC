@@ -41,6 +41,8 @@ app.get('/api/auth/me', authenticate, me);
 
 app.get('/api/companies', authenticate, companiesRoutes.list);
 app.get('/api/companies/search', authenticate, companiesRoutes.search);
+app.get('/api/companies/public', publicInductionLimiter, companiesRoutes.list);
+app.post('/api/companies/public', publicInductionLimiter, companiesRoutes.create);
 app.get('/api/companies/:id', authenticate, companiesRoutes.getById);
 app.post('/api/companies', authenticate, companiesRoutes.create);
 app.put('/api/companies/:id', authenticate, authorize('ADMIN'), companiesRoutes.update);
@@ -49,6 +51,7 @@ app.delete('/api/companies/:id', authenticate, authorize('ADMIN'), developmentOn
 
 app.get('/api/visitors', authenticate, visitorsRoutes.list);
 app.get('/api/visitors/search', authenticate, visitorsRoutes.search);
+app.get('/api/visitors/public/search', publicInductionLimiter, visitorsRoutes.publicSearch);
 app.get('/api/visitors/:id/history', authenticate, visitorsRoutes.history);
 app.get('/api/visitors/:id', authenticate, visitorsRoutes.getById);
 app.post('/api/visitors', authenticate, visitorsRoutes.create);
@@ -69,7 +72,10 @@ app.delete('/api/visits/:id', authenticate, authorize('ADMIN'), developmentOnly,
 
 app.get('/api/safety-inductions/active/contents', safetyInductionsRoutes.getActiveContents);
 app.post('/api/safety-inductions/access/:visitId', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.issueToken);
-app.get('/api/safety-inductions/token/:token/workflow', publicInductionLimiter, safetyInductionsRoutes.tokenWorkflow);
+  app.get('/api/safety-inductions/token/:token/workflow', publicInductionLimiter, safetyInductionsRoutes.tokenWorkflow);
+  app.get('/api/hris/employees/public', publicInductionLimiter, hrisRoutes.search);
+  app.get('/api/hris/employees/public-list', publicInductionLimiter, hrisRoutes.publicList);
+  app.post('/api/safety-inductions/public/register', publicInductionLimiter, safetyInductionsRoutes.publicRegister);
 app.get('/api/safety-inductions/manage/contents', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.managedContents);
 app.get('/api/safety-inductions/manage/config', authenticate, authorize('ADMIN'), safetyInductionsRoutes.config);
 app.patch('/api/safety-inductions/manage/config', authenticate, authorize('ADMIN'), safetyInductionsRoutes.updateConfig);
@@ -77,7 +83,8 @@ app.post('/api/safety-inductions/manage/contents', authenticate, authorize('ADMI
 app.patch('/api/safety-inductions/manage/contents/:id/status', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.updateContentStatus);
 app.delete('/api/safety-inductions/manage/contents/:id', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.removeContent);
 app.get('/api/safety-inductions/visitor/:visitorId/history', authenticate, safetyInductionsRoutes.getVisitorHistory);
-app.post('/api/safety-inductions/complete', publicInductionLimiter, safetyInductionsRoutes.complete);
+  app.post('/api/safety-inductions/complete', publicInductionLimiter, safetyInductionsRoutes.complete);
+  app.post('/api/safety-inductions/complete-group', publicInductionLimiter, safetyInductionsRoutes.completeGroup);
 
 app.get('/api/hris/employees', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), hrisRoutes.search);
 app.get('/api/audit-logs', authenticate, authorize('ADMIN'), auditRoutes.list);

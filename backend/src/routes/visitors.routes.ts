@@ -9,6 +9,7 @@ import {
   searchVisitors,
   getVisitorVisitHistory,
   deleteVisitor,
+  searchPublicVisitors,
 } from '../services/visitors.service';
 import { type AuthenticatedRequest } from '../middleware/authenticate';
 
@@ -53,6 +54,24 @@ export async function search(
     }
     const visitors = await searchVisitors(q, limit ? parseInt(limit, 10) : 20);
     res.json(visitors);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function publicSearch(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { q, companyId, limit } = req.query as { q?: string; companyId?: string; limit?: string };
+    const parsedCompanyId = companyId ? parseInt(companyId, 10) : NaN;
+    if (!q || q.trim().length < 2 || !Number.isInteger(parsedCompanyId)) {
+      res.json([]);
+      return;
+    }
+    res.json(await searchPublicVisitors(q, parsedCompanyId, limit ? parseInt(limit, 10) : 10));
   } catch (error) {
     next(error);
   }

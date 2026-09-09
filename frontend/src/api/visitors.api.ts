@@ -34,6 +34,18 @@ export async function listVisitors(params?: {
   return { data: result.data.map(toVisitor), pagination: result.pagination };
 }
 
+export interface PublicVisitorMatch {
+  Id: number;
+  VisitorCode: string;
+  VisitorName: string;
+  CompanyId: number;
+  PhoneNumber: string | null;
+}
+
+export async function searchPublicVisitors(q: string, companyId: number): Promise<PublicVisitorMatch[]> {
+  return apiClient<PublicVisitorMatch[]>(`/visitors/public/search?q=${encodeURIComponent(q)}&companyId=${companyId}`);
+}
+
 export async function searchVisitors(q: string): Promise<{ Id: number; VisitorCode: string; VisitorName: string; PhoneNumber: string | null }[]> {
   return apiClient(`/visitors/search?q=${encodeURIComponent(q)}`);
 }

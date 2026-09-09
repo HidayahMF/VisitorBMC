@@ -9,6 +9,18 @@ export interface InductionWorkflow { visitId: number; visitCode: string; status:
 export async function issueInductionToken(visitId: number): Promise<{ token: string; expiresAt: string }> { return apiClient(`/safety-inductions/access/${visitId}`, { method: 'POST' }); }
 export async function getInductionWorkflow(token: string): Promise<InductionWorkflow> { return apiClient<InductionWorkflow>(`/safety-inductions/token/${encodeURIComponent(token)}/workflow`); }
 
+export async function registerPublicVisit(data: {
+  companyName: string;
+  hostName: string;
+  purpose: string;
+  visitors: Array<{ name: string; phoneNumber?: string }>;
+}): Promise<{ visitId: number; visitCode: string; token: string; expiresAt: string; visitors: Array<{ id: number; name: string }> }> {
+  return apiClient('/safety-inductions/public/register', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 export async function getVisitorInductionHistory(visitorId: number): Promise<InductionRecord[]> {
   return apiClient<InductionRecord[]>(`/safety-inductions/visitor/${visitorId}/history`);
 }
@@ -51,6 +63,17 @@ export async function completeInduction(data: {
   acknowledged: boolean;
 }): Promise<{ recordId: number; completedAt: string; acknowledgedAt: string; validUntil: string; workflow?: InductionWorkflow }> {
   return apiClient<{ recordId: number; completedAt: string; acknowledgedAt: string; validUntil: string }>('/safety-inductions/complete', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function completeGroupInduction(data: {
+  token: string;
+  visitorIds: number[];
+  acknowledged: boolean;
+}): Promise<{ workflow: InductionWorkflow }> {
+  return apiClient('/safety-inductions/complete-group', {
     method: 'POST',
     body: JSON.stringify(data),
   });

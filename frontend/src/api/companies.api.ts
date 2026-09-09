@@ -31,6 +31,19 @@ export async function searchCompanies(q: string): Promise<Company[]> {
   return result.map(toCompany);
 }
 
+export async function listPublicCompanies(limit = 100): Promise<Company[]> {
+  const result = await apiClient<{ data: Record<string, unknown>[] }>('/companies/public?active=true&limit=' + limit);
+  return result.data.map(toCompany);
+}
+
+export async function createPublicCompany(data: { companyName: string }): Promise<Company> {
+  const result = await apiClient<Record<string, unknown>>('/companies/public', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return toCompany(result);
+}
+
 export async function getCompany(id: number): Promise<Company> {
   return toCompany(await apiClient<Record<string, unknown>>(`/companies/${id}`));
 }

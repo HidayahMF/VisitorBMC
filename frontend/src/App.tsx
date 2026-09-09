@@ -19,6 +19,7 @@ import { AuditLogPage } from './pages/AuditLogPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SafetyConfigurationPage } from './pages/SafetyConfigurationPage';
 import { UserManagementPage } from './pages/UserManagementPage';
+import { PublicVisitRegistrationPage } from './pages/PublicVisitRegistrationPage';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
          <Route path="/safety-induction/:token" element={<SafetyInductionPage />} />
+         <Route path="/visitor/register" element={<PublicVisitRegistrationPage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/companies" element={<CompaniesPage />} />
@@ -47,7 +49,7 @@ function App() {
             <Route path="/visitors/:id/edit" element={<EditVisitorPage />} />
           </Route>
         </Route>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
   );

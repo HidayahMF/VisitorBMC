@@ -1,6 +1,6 @@
 import { type Request, type Response, type NextFunction } from 'express';
 import { AppError } from '../middleware/errorHandler';
-import { searchEmployees } from '../services/hris.service';
+import { listEmployees, searchEmployees } from '../services/hris.service';
 import { env } from '../config/env';
 
 export async function search(
@@ -27,6 +27,20 @@ export async function search(
     // The HRIS table may not exist yet in some environments (e.g. local dev).
     // Returning empty keeps the endpoint usable; manual host entry still works.
     console.error('HRIS employee lookup failed:', error);
+    res.json([]);
+  }
+}
+
+export async function publicList(
+  req: Request,
+  res: Response,
+  _next: NextFunction,
+) {
+  try {
+    const { limit } = req.query as { limit?: string };
+    res.json(await listEmployees(limit ? parseInt(limit, 10) : 50));
+  } catch (error) {
+    console.error('HRIS employee list failed:', error);
     res.json([]);
   }
 }

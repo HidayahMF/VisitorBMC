@@ -31,6 +31,7 @@ export interface IPaginatedVisitors {
 
 export interface IPotentialMatch {
   Id: number;
+  CompanyId?: number;
   VisitorCode: string;
   VisitorName: string;
   PhoneNumber: string | null;
@@ -484,7 +485,7 @@ export async function searchVisitors(query: string, limit: number = 20): Promise
     .input('q', sql.NVarChar, `%${query}%`)
     .input('limit', sql.Int, Math.min(MAX_PAGE_SIZE, Math.max(1, limit)))
     .query(`
-      SELECT TOP (@limit) Id, VisitorCode, VisitorName, PhoneNumber
+       SELECT TOP (@limit) Id, VisitorCode, VisitorName, CompanyId, PhoneNumber
       FROM vms.Visitors
       WHERE VisitorName LIKE @q OR VisitorCode LIKE @q
       ORDER BY VisitorName
@@ -493,8 +494,40 @@ export async function searchVisitors(query: string, limit: number = 20): Promise
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return result.recordset.map((row: any) => ({
     Id: row.Id,
+    CompanyId: row.CompanyId,
     VisitorCode: row.VisitorCode,
     VisitorName: row.VisitorName,
+    PhoneNumber: row.PhoneNumber || null,
+  }));
+}
+
+export async function searchPublicVisitors(
+  query: string,
+  companyId: number,
+  limit: number = 10,
+): Promise<IPotentialMatch[]> {
+  if (!query.trim() || !Number.isInteger(companyId)) return [];
+
+  const pool = await getDbConnection();
+  const result = await pool
+    .request()
+    .input('q', sql.NVarChar, `${query.trim()}%`)
+    .input('companyId', sql.Int, companyId)
+    .input('limit', sql.Int, Math.min(MAX_PAGE_SIZE, Math.max(1, limit)))
+    .query(`
+      SELECT TOP (@limit) Id, VisitorCode, VisitorName, CompanyId, PhoneNumber
+      FROM vms.Visitors
+      WHERE CompanyId = @companyId
+        AND IsActive = 1
+        AND VisitorName LIKE @q
+      ORDER BY VisitorName
+    `);
+
+  return result.recordset.map((row) => ({
+    Id: row.Id,
+    VisitorCode: row.VisitorCode,
+    VisitorName: row.VisitorName,
+    CompanyId: row.CompanyId,
     PhoneNumber: row.PhoneNumber || null,
   }));
 }

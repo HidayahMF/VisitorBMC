@@ -20,6 +20,8 @@ import {
   getPublicInductionWorkflowByToken,
   issuePublicInductionToken,
   completeInductionByToken,
+  createPublicVisit,
+  completeGroupInductionByToken,
 } from '../services/safety-inductions.service';
 
 const contentUploadDir = path.join(env.UPLOAD_DIR, 'safety-induction');
@@ -55,6 +57,29 @@ export async function getActiveContents(
 
 export async function issueToken(req: AuthenticatedRequest, res: Response, next: NextFunction) { try { const visitId = Number(req.params.visitId); if (!Number.isInteger(visitId)) throw new AppError('Invalid visit ID', 400); res.status(200).json(await issuePublicInductionToken(visitId)); } catch (error) { next(error); } }
 export async function tokenWorkflow(req: Request, res: Response, next: NextFunction) { try { res.json(await getPublicInductionWorkflowByToken(String(req.params.token))); } catch (error) { next(error); } }
+
+export async function publicRegister(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { companyName, hostName, purpose, visitors } = req.body as {
+      companyName?: string;
+      hostName?: string;
+      purpose?: string;
+      visitors?: Array<{ name?: string; phoneNumber?: string }>;
+    };
+    if (!companyName || !hostName || !purpose || !Array.isArray(visitors)) {
+      throw new AppError('Company, host, purpose, and visitors are required', 400);
+    }
+    res.status(201).json(await createPublicVisit({
+      companyName,
+      hostName,
+      purpose,
+      visitors: visitors.map((visitor) => ({ name: visitor.name ?? '', phoneNumber: visitor.phoneNumber })),
+      ipAddress: req.ip,
+    }));
+  } catch (error) {
+    next(error);
+  }
+}
 
 export async function getVisitorHistory(
   req: Request,
@@ -93,6 +118,20 @@ export async function complete(
     const completion = await completeInductionByToken(token, visitorId, acknowledged, req.ip);
 
     res.status(200).json({ ...completion.result, workflow: completion.workflow });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function completeGroup(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { token, visitorIds, acknowledged } = req.body as {
+      token?: string;
+      visitorIds?: number[];
+      acknowledged?: boolean;
+    };
+    if (!token || !Array.isArray(visitorIds)) throw new AppError('Induction token and visitor IDs are required', 400);
+    res.status(200).json(await completeGroupInductionByToken(token, visitorIds, acknowledged === true, req.ip));
   } catch (error) {
     next(error);
   }

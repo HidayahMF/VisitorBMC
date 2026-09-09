@@ -42,7 +42,11 @@ export function LoginPage() {
       <section className="login-panel">
         <div className="login-card">
           <h1>Welcome back</h1>
-          <p className="login-helper">Masuk menggunakan NIP dan tanggal lahir Anda untuk melanjutkan ke VisitorBMC.</p>
+          <p className="login-helper">Halaman ini digunakan Security dan Admin untuk mengelola kunjungan, check-in, dan checkout.</p>
+          <div className="login-visitor-route">
+            <div><strong>Anda visitor?</strong><span>Isi data kunjungan dan Safety Induction tanpa membuat akun.</span></div>
+            <button type="button" onClick={() => navigate('/visitor/register')}>Mulai registrasi visitor</button>
+          </div>
           <div className="mb-5 flex flex-wrap gap-2">
             <DevFillButton
               label="Isi data contoh Admin"
