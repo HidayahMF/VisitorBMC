@@ -40,6 +40,12 @@ function renderPage() {
   );
 }
 
+function finishCurrentVideo() {
+  const video = document.querySelector('video');
+  if (!video) throw new Error('Expected a video element');
+  fireEvent.ended(video);
+}
+
 describe('SafetyInductionPage', () => {
   it('shows an empty state when no active content is configured', async () => {
     mockGetActiveContents.mockResolvedValue({ induction: inductionData.induction, contents: [] });
@@ -58,6 +64,7 @@ describe('SafetyInductionPage', () => {
   it('navigates to next content', async () => {
     renderPage();
     await screen.findByText('Intro Video');
+    finishCurrentVideo();
     fireEvent.click(screen.getByText('Next'));
     expect(await screen.findByText('Emergency Exits')).toBeInTheDocument();
     expect(screen.getByText('Safety Induction untuk seluruh grup')).toBeInTheDocument();
@@ -68,6 +75,7 @@ describe('SafetyInductionPage', () => {
     await screen.findByText('Intro Video');
     // Acknowledgement not visible on first content
     expect(screen.queryByText(/^Saya memastikan seluruh visitor/)).not.toBeInTheDocument();
+    finishCurrentVideo();
     fireEvent.click(screen.getByText('Next'));
     await screen.findByText('Emergency Exits');
     expect(screen.getByText(/^Saya memastikan seluruh visitor/)).toBeInTheDocument();
@@ -76,6 +84,7 @@ describe('SafetyInductionPage', () => {
   it('disables Complete until acknowledged', async () => {
     renderPage();
     await screen.findByText('Intro Video');
+    finishCurrentVideo();
     fireEvent.click(screen.getByText('Next'));
     await screen.findByText('Emergency Exits');
     const button = screen.getByText('Submit dan Check-in Grup') as HTMLButtonElement;
@@ -90,6 +99,7 @@ describe('SafetyInductionPage', () => {
     mockGetWorkflow.mockResolvedValueOnce({ visitId: 1, visitCode: 'VIS-1', visitors: [{ visitorId: 7, visitorName: 'Andi', safetyStatus: 'VALID', needsInduction: false }], requiredCount: 0, completedCount: 1, remainingCount: 0, nextVisitorId: null, status: 'READY_FOR_CHECKIN' });
     renderPage();
     await screen.findByText('Intro Video');
+    finishCurrentVideo();
     fireEvent.click(screen.getByText('Next'));
     await screen.findByText('Emergency Exits');
     fireEvent.click(screen.getByRole('checkbox'));

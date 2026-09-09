@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type SyntheticEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getActiveInductionContents, completeGroupInduction, getInductionWorkflow, type InductionWorkflow } from '../api/safety-inductions.api';
 import { type InductionContent, type InductionConfig } from '../types/induction';
@@ -26,10 +26,17 @@ export function SafetyInductionPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [completed, setCompleted] = useState(false);
+  const [videoCompleted, setVideoCompleted] = useState(false);
+  const maxVideoTime = useRef(0);
 
   useEffect(() => {
     loadContents();
   }, []);
+
+  useEffect(() => {
+    maxVideoTime.current = 0;
+    setVideoCompleted(false);
+  }, [currentIndex]);
 
   async function loadContents() {
     try {
@@ -62,6 +69,19 @@ export function SafetyInductionPage() {
       setError('Failed to submit acknowledgement');
     }
     setSubmitting(false);
+  }
+
+  function handleVideoProgress(event: SyntheticEvent<HTMLVideoElement>) {
+    const video = event.currentTarget;
+    maxVideoTime.current = Math.max(maxVideoTime.current, video.currentTime);
+  }
+
+  function preventVideoSeeking(event: SyntheticEvent<HTMLVideoElement>) {
+    const video = event.currentTarget;
+    // Allow a small browser rounding difference, but never allow jumping ahead.
+    if (video.currentTime > maxVideoTime.current + 0.25) {
+      video.currentTime = maxVideoTime.current;
+    }
   }
 
   if (loading) {
@@ -155,7 +175,16 @@ export function SafetyInductionPage() {
 
             <div className="bg-gray-100 rounded p-4 text-center mb-4">
               {currentContent.ContentType === 'VIDEO' ? (
-                <video className="w-full max-h-[520px] rounded" controls preload="metadata" src={currentContentUrl}>
+                <video
+                  className="w-full max-h-[520px] rounded"
+                  controls
+                  controlsList="nodownload"
+                  preload="metadata"
+                  src={currentContentUrl}
+                  onTimeUpdate={handleVideoProgress}
+                  onSeeking={preventVideoSeeking}
+                  onEnded={() => setVideoCompleted(true)}
+                >
                   Video tidak dapat diputar pada perangkat ini.
                 </video>
               ) : currentContent.ContentType === 'PDF' ? (
@@ -178,7 +207,7 @@ export function SafetyInductionPage() {
               </button>
               <button
                 onClick={() => setCurrentIndex(i => i + 1)}
-                disabled={isLast}
+                 disabled={isLast || (currentContent.ContentType === 'VIDEO' && !videoCompleted)}
                 className="text-sm px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 disabled:opacity-40"
               >
                 Next
@@ -211,7 +240,7 @@ export function SafetyInductionPage() {
 
             <button
               onClick={handleComplete}
-              disabled={!acknowledged || submitting}
+              disabled={!acknowledged || submitting || (currentContent.ContentType === 'VIDEO' && !videoCompleted)}
               className="w-full text-sm px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 disabled:opacity-40"
             >
                {submitting ? 'Menyimpan...' : 'Submit dan Check-in Grup'}
