@@ -49,7 +49,7 @@ function App() {
             <Route path="/visitors/:id/edit" element={<EditVisitorPage />} />
           </Route>
         </Route>
-         <Route path="/" element={<Navigate to="/login" replace />} />
+         <Route path="/" element={<Navigate to="/visitor/register" replace />} />
       </Routes>
     </Router>
   );

@@ -56,9 +56,10 @@ function buildVisit(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-function renderPage(status = 'READY_FOR_CHECKIN', visitors?: unknown[]) {
+function renderPage(status = 'READY_FOR_CHECKIN', visitors?: unknown[], safetySummary?: unknown) {
   const overrides: Record<string, unknown> = { Status: status };
   if (visitors) overrides.Visitors = visitors;
+  if (safetySummary) overrides.SafetySummary = safetySummary;
   const visit = buildVisit(overrides);
   mockGetVisit.mockResolvedValue(visit);
   return render(
@@ -121,11 +122,27 @@ describe('VisitDetailPage', () => {
     expect(screen.getByText('Sudah Keluar')).toBeInTheDocument();
   });
 
-  it('shows Start Safety Induction button when pending induction', async () => {
+  it('shows every visitor with localized status and validity details', async () => {
+    renderPage('READY_FOR_CHECKIN', [
+      { Id: 11, VisitorCode: 'VST-000001', VisitorName: 'Hidayah', PhoneNumber: null, SafetyStatus: 'VALID', ValidUntil: '2027-03-09' },
+      { Id: 12, VisitorCode: 'VST-000002', VisitorName: 'Falah', PhoneNumber: null, SafetyStatus: 'VALID', ValidUntil: '2027-03-09' },
+    ]);
+    expect((await screen.findAllByText('Hidayah')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Falah').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('VST-000001').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('VST-000002').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Masih Berlaku').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Berlaku hingga/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/safety induction/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Mulai Safety Induction')).not.toBeInTheDocument();
+  });
+
+  it('localizes required status and only shows induction controls when required', async () => {
     renderPage('PENDING_INDUCTION', [
       { Id: 11, VisitorCode: 'VST-000011', VisitorName: 'Reza', PhoneNumber: null, SafetyStatus: 'REQUIRED', ValidUntil: null },
-    ]);
+    ], { totalVisitors: 1, cleared: 0, requiresInduction: 1 });
     await screen.findByText('VIS-20260907-001');
+    expect(screen.getAllByText('Perlu Induksi').length).toBeGreaterThan(0);
     expect(screen.getByText('Mulai Safety Induction')).toBeInTheDocument();
   });
 

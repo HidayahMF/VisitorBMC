@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { LanguageProvider } from '../i18n/LanguageContext';
 import { MemoryRouter } from 'react-router-dom';
 import { DashboardPage } from './DashboardPage';
@@ -14,6 +14,25 @@ const pagination = { page: 1, limit: 8, total: 1, totalPages: 1 };
 describe('DashboardPage', () => {
   beforeEach(() => { vi.resetAllMocks(); mockStats.mockResolvedValue(stats); mockVisits.mockResolvedValue({ data: [{ Id: 12, VisitCode: 'VIS-001', CompanyName: 'PT BMC', HostName: 'Hidayah', VisitorCount: 3, Status: 'IN' }], pagination }); });
   it('shows people-based KPIs, recent activity, and attention', async () => { render(<MemoryRouter><LanguageProvider><DashboardPage /></LanguageProvider></MemoryRouter>); expect(await screen.findByText('Pengunjung Hari Ini')).toBeInTheDocument(); expect(screen.getByText('5')).toBeInTheDocument(); expect(screen.getAllByText('orang')).toHaveLength(3); expect(screen.getByText('Aktivitas Hari Ini')).toBeInTheDocument(); expect(screen.getByText('VIS-001')).toBeInTheDocument(); expect(screen.getByText('Perlu Perhatian')).toBeInTheDocument(); expect(screen.getByText('2 pengunjung')).toBeInTheDocument(); });
+  it('keeps operational sections in a usable reading order and preserves activity data', async () => {
+    render(<MemoryRouter><LanguageProvider><DashboardPage /></LanguageProvider></MemoryRouter>);
+    expect(await screen.findByText('Aktivitas Hari Ini')).toBeInTheDocument();
+    const operations = document.querySelector('.dashboard-operations-grid');
+    expect(operations?.children[0]).toHaveClass('attention-section');
+    expect(operations?.children[1]).toHaveClass('activity-section');
+    expect(screen.getByText('PT BMC')).toBeInTheDocument();
+    expect(screen.getByText('Host: Hidayah')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /VIS-001/i })).toHaveAttribute('href', '/visits/12');
+  });
+  it('renders English operational labels without removing core sections', async () => {
+    render(<MemoryRouter><LanguageProvider><DashboardPage /></LanguageProvider></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /switch to english/i }));
+    expect(await screen.findByText("Today's Activity")).toBeInTheDocument();
+    expect(screen.getByText('Requires Attention')).toBeInTheDocument();
+    expect(screen.getByText('Visitors Today')).toBeInTheDocument();
+    expect(screen.getByText('New Visit')).toBeInTheDocument();
+    expect(screen.getByText('Visit History')).toBeInTheDocument();
+  });
   it('shows a calm attention state when no induction is required', async () => { mockStats.mockResolvedValue({ ...stats, inductionRequiredToday: 0 }); render(<MemoryRouter><LanguageProvider><DashboardPage /></LanguageProvider></MemoryRouter>); expect(await screen.findByText('Tidak ada tindakan pengunjung yang perlu diperhatikan saat ini.')).toBeInTheDocument(); });
   it('does not render zero KPIs while the request is loading', () => { mockStats.mockReturnValue(new Promise(() => undefined)); mockVisits.mockReturnValue(new Promise(() => undefined)); render(<MemoryRouter><LanguageProvider><DashboardPage /></LanguageProvider></MemoryRouter>); expect(screen.getByText('Memuat...')).toBeInTheDocument(); expect(screen.queryByText('0')).not.toBeInTheDocument(); });
 });

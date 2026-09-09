@@ -14,7 +14,7 @@ import { VisitorBadge } from '../components/VisitorBadge';
 
 export function VisitDetailPage() {
   const { user } = useAuth();
-  const { language, t } = useLanguage();
+  const { language, t, formatDate } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [visit, setVisit] = useState<VisitDetail | null>(null);
@@ -83,16 +83,16 @@ export function VisitDetailPage() {
     }
   }
 
-  function getStatusBadge(status: string) {
+  function getStatusBadge(status: string, requiresInduction = 1) {
     switch (status) {
       case 'VALID':
-        return <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">VALID</span>;
+        return <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">{t('visitDetail.valid')}</span>;
       case 'REQUIRED':
-        return <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">REQUIRED</span>;
+        return <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">{t('visitDetail.required')}</span>;
       case 'EXPIRED':
-        return <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700">EXPIRED</span>;
-       case 'PENDING_INDUCTION':
-         return <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">Perlu Induksi</span>;
+        return <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700">{t('visitDetail.expired')}</span>;
+        case 'PENDING_INDUCTION':
+         return requiresInduction > 0 ? <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">{t('visitDetail.required')}</span> : null;
        case 'READY_FOR_CHECKIN':
          return <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">Siap Masuk</span>;
        case 'IN':
@@ -166,12 +166,12 @@ export function VisitDetailPage() {
 
           <div className="mb-4">
             <p className="text-gray-500 text-xs mb-1">Status</p>
-            {getStatusBadge(visit.Status)}
+             {getStatusBadge(visit.Status, visit.SafetySummary.requiresInduction)}
           </div>
 
-          {visit.Status === 'PENDING_INDUCTION' && (
+          {visit.Status === 'PENDING_INDUCTION' && visit.SafetySummary.requiresInduction > 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-800 mb-4">
-              Safety Induction is required for {visit.SafetySummary.requiresInduction} visitor(s).
+              {visit.SafetySummary.requiresInduction} {t('visitDetail.inductionWarning')}
             </div>
           )}
 
@@ -183,7 +183,7 @@ export function VisitDetailPage() {
 
           {visit.Status === 'IN' && (
             <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 mb-4">
-              Visit is currently inside the facility.
+              Pengunjung sedang berada di dalam area BMC.
             </div>
           )}
 
@@ -194,13 +194,13 @@ export function VisitDetailPage() {
           )}
 
           <div className="flex gap-2">
-            {visit.Status === 'PENDING_INDUCTION' && (
+            {visit.Status === 'PENDING_INDUCTION' && visit.SafetySummary.requiresInduction > 0 && (
               <button
                 onClick={() => void startInduction()}
                 disabled={inductionLoading}
                 className="text-sm px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
               >
-                {inductionLoading ? 'Menyiapkan...' : 'Mulai Safety Induction'}
+                {inductionLoading ? t('visitDetail.inductionPreparing') : t('visitDetail.startInduction')}
               </button>
             )}
             {visit.Status === 'READY_FOR_CHECKIN' && (
@@ -225,39 +225,45 @@ export function VisitDetailPage() {
         </div>
 
         <div className="bg-white border rounded p-6">
-          <h2 className="font-medium mb-4">Visitors ({visit.Visitors.length})</h2>
+          <h2 className="font-medium mb-4">{t('visitDetail.visitors')} ({visit.Visitors.length})</h2>
 
           <div className="mb-4 text-sm text-gray-600">
-            {visit.SafetySummary.cleared} cleared · {visit.SafetySummary.requiresInduction} require induction
+            {visit.SafetySummary.cleared} {t('visitDetail.cleared')} · {visit.SafetySummary.requiresInduction} {t('visitDetail.requireInduction')}
           </div>
 
-           <div className="space-y-2 visit-detail-desktop-list">
+          <div className="space-y-2 visit-detail-desktop-list">
             {visit.Visitors.map(v => (
               <div key={v.Id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
                 <div>
                   <p className="text-sm font-medium">{v.VisitorName}</p>
                   <p className="text-xs text-gray-500">{v.VisitorCode}</p>
-           </div>
-           <div className="mobile-record-list visit-detail-mobile-list">{visit.Visitors.map(v => <article key={v.Id} className="mobile-record-card"><div className="mobile-record-heading"><div><strong>{v.VisitorName}</strong><p className="text-xs text-gray-500">{v.VisitorCode}</p></div>{getStatusBadge(v.SafetyStatus)}</div><dl className="mobile-record-details"><div><dt>Status safety</dt><dd>{v.SafetyStatus}</dd></div><div><dt>Berlaku sampai</dt><dd>{v.ValidUntil ? new Date(v.ValidUntil).toLocaleDateString('id-ID') : '-'}</dd></div></dl>{v.SafetyStatus !== 'VALID' && visit.Status === 'PENDING_INDUCTION' && <button type="button" onClick={() => void startInduction()} disabled={inductionLoading} className="mt-3 text-xs px-3 py-1.5 bg-amber-100 text-amber-700 rounded disabled:opacity-40">{inductionLoading ? 'Menyiapkan...' : 'Mulai induction'}</button>}</article>)}</div>
+                </div>
                 <div className="flex items-center gap-2">
                   {v.ValidUntil && (
                     <span className="text-xs text-gray-500">
-                      Until {new Date(v.ValidUntil).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                       {t('visitDetail.until')} {formatDate(v.ValidUntil, { day: '2-digit', month: 'short', year: 'numeric' })}
                     </span>
                   )}
                   {getStatusBadge(v.SafetyStatus)}
-                  {v.SafetyStatus !== 'VALID' && visit.Status === 'PENDING_INDUCTION' && (
+                   {v.SafetyStatus !== 'VALID' && visit.Status === 'PENDING_INDUCTION' && visit.SafetySummary.requiresInduction > 0 && (
                     <button
                        onClick={() => void startInduction()}
                        disabled={inductionLoading}
                       className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded hover:bg-amber-200"
                     >
-                      Induct
+                       {t('visitDetail.startInduction')}
                     </button>
                   )}
                 </div>
-              </div>
-            ))}
+           </div>
+           ))}
+          </div>
+          <div className="mobile-record-list visit-detail-mobile-list">
+            {visit.Visitors.map(v => <article key={v.Id} className="mobile-record-card">
+              <div className="mobile-record-heading"><div><strong>{v.VisitorName}</strong><p className="text-xs text-gray-500">{v.VisitorCode}</p></div>{getStatusBadge(v.SafetyStatus)}</div>
+              <dl className="mobile-record-details"><div><dt>{t('visitDetail.validUntil')}</dt><dd>{v.ValidUntil ? formatDate(v.ValidUntil, { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</dd></div></dl>
+              {v.SafetyStatus !== 'VALID' && visit.Status === 'PENDING_INDUCTION' && visit.SafetySummary.requiresInduction > 0 && <button type="button" onClick={() => void startInduction()} disabled={inductionLoading} className="mt-3 text-xs px-3 py-1.5 bg-amber-100 text-amber-700 rounded disabled:opacity-40">{inductionLoading ? t('visitDetail.inductionPreparing') : t('visitDetail.startInduction')}</button>}
+            </article>)}
           </div>
         </div>
       </div>

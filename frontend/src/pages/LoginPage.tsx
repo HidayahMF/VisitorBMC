@@ -41,7 +41,7 @@ export function LoginPage() {
       </section>
       <section className="login-panel">
         <div className="login-card">
-          <h1>Welcome back</h1>
+          <h1>Welcome</h1>
           <p className="login-helper">Halaman ini digunakan Security dan Admin untuk mengelola kunjungan, check-in, dan checkout.</p>
           <div className="login-visitor-route">
             <div><strong>Anda visitor?</strong><span>Isi data kunjungan dan Safety Induction tanpa membuat akun.</span></div>

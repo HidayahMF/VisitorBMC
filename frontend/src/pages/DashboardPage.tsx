@@ -89,13 +89,13 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <div className="dashboard-operations-grid">
-        <section className="dashboard-operation-section">
+       <div className="dashboard-operations-grid">
+         <section className="dashboard-operation-section attention-section"><div className="dashboard-section-head"><div><h2>{t('dashboard.attention')}</h2></div></div>{stats && stats.inductionRequiredToday > 0 ? <Link to="/visits" className="attention-item"><span className="attention-marker" aria-hidden="true" /><span><strong>{t('dashboard.metrics.inductionRequiredToday')}</strong><small>{stats.inductionRequiredToday} {t('dashboard.visitors')}</small></span><span className="dashboard-section-link">{t('dashboard.view')}</span></Link> : <div className="dashboard-calm-state">{t('dashboard.noAttention')}</div>}</section>
+         <section className="dashboard-operation-section activity-section">
           <div className="dashboard-section-head"><div><h2>{t('dashboard.activity')}</h2><span>{t('dashboard.activityDescription')}</span></div><Link to="/visits" className="dashboard-section-link">{t('dashboard.view')}</Link></div>
           {activityError ? <ErrorState message={activityError} onRetry={load} /> : activity.length === 0 ? <div className="dashboard-calm-state">{t('dashboard.noActivity')}</div> : <div className="activity-list">{activity.map(visit => <Link key={visit.Id} to={`/visits/${visit.Id}`} className="activity-row"><div className="activity-main"><strong>{visit.VisitCode}</strong><span>{visit.CompanyName}</span></div><div className="activity-meta"><span>{visit.VisitorCount ?? '-'} {t('dashboard.visitors')}</span><span>{t('dashboard.host')}: {visit.HostName}</span></div><span className="activity-status">{visit.Status === 'OUT' ? t('status.out') : visit.Status === 'IN' ? t('status.inside') : visit.Status === 'READY_FOR_CHECKIN' ? t('status.ready') : t('status.required')}</span></Link>)}</div>}
         </section>
-        <section className="dashboard-operation-section attention-section"><div className="dashboard-section-head"><div><h2>{t('dashboard.attention')}</h2></div></div>{stats && stats.inductionRequiredToday > 0 ? <Link to="/visits" className="attention-item"><span className="attention-marker" aria-hidden="true" /><span><strong>{t('dashboard.metrics.inductionRequiredToday')}</strong><small>{stats.inductionRequiredToday} {t('dashboard.visitors')}</small></span><span className="dashboard-section-link">{t('dashboard.view')}</span></Link> : <div className="dashboard-calm-state">{t('dashboard.noAttention')}</div>}</section>
-      </div>
+       </div>
     </Layout>
   );
 }

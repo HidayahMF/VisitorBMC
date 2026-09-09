@@ -9,7 +9,6 @@ import crypto from 'crypto';
 import { findCompaniesBySearch } from './companies.service';
 import { createVisitor, searchVisitors } from './visitors.service';
 import { createVisit } from './visits.service';
-import { searchEmployees } from './hris.service';
 
 export interface ISafetyInduction {
   Id: number;
@@ -201,12 +200,6 @@ export async function createPublicVisit(
 
   if (!companyName || !hostName || !purpose || visitors.length === 0 || visitors.length > 20) {
     throw new AppError('Company, host, purpose, and 1-20 visitors are required', 400);
-  }
-
-  const hostMatches = await searchEmployees(hostName, 50);
-  const registeredHost = hostMatches.find((employee) => employee.name.toLowerCase() === hostName.toLowerCase() && employee.isActive);
-  if (!registeredHost) {
-    throw new AppError('Host must be selected from the active BMC employee list', 400);
   }
 
   const matches = await findCompaniesBySearch(companyName, 20);
