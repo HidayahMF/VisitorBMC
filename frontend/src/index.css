@@ -604,6 +604,9 @@ main .bg-blue-50 { background: #eef5ff; border-color: #cbdcff; }
 .login-visual p { max-width: 450px; margin-top: 18px; color: #b8c9e5; font-size: 15px; line-height: 1.7; }
 .login-panel { display: flex; align-items: center; justify-content: center; padding: 40px; background: #fff; }
 .login-card { width: min(100%, 390px); }
+.login-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 0 0 20px; padding: 4px; border: 1px solid var(--line-strong); border-radius: 8px; background: #f4f7fb; }
+.login-mode-switch button { min-height: 36px; border: 0; border-radius: 6px; background: transparent; color: #52627a; font-size: 13px; font-weight: 750; }
+.login-mode-switch button.active { background: #fff; color: var(--bmc-navy); box-shadow: 0 1px 4px rgba(27, 48, 80, .14); }
 .login-card h1 { margin: 0; font-size: 27px; }
 .login-card .login-helper { margin: 9px 0 30px; color: var(--muted); line-height: 1.6; }
 .login-label { display: block; margin: 18px 0 7px; color: #40516c; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }

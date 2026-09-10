@@ -180,9 +180,45 @@ export async function findUserForLogin(
   };
 }
 
+export async function findPasswordUserForLogin(
+  username: string,
+): Promise<IUser & { PasswordHash: string } | null> {
+  const pool = await getDbConnection();
+  const result = await pool
+    .request()
+    .input('username', sql.VarChar(50), username.trim())
+    .query(`
+      SELECT Id, Name, Username, Role, IsActive, PasswordHash
+      FROM vms.Users
+      WHERE Username = @username
+        AND Username IN ('admin', 'monitoring', 'security')
+    `);
+  return result.recordset[0] ?? null;
+}
+
 export async function getUserById(id: number): Promise<IUser | null> {
   const pool = await getDbConnection();
   const table = env.HRIS_EMPLOYEE_TABLE;
+  const systemUser = await pool
+    .request()
+    .input('id', sql.Int, id)
+    .query(`
+      SELECT Id, Name, Username, Role, IsActive
+      FROM vms.Users
+      WHERE Id = @id
+        AND Username IN ('admin', 'monitoring', 'security')
+    `);
+  if (systemUser.recordset[0]) {
+    const row = systemUser.recordset[0];
+    return {
+      Id: row.Id,
+      Name: row.Name,
+      Username: row.Username,
+      Role: row.Role,
+      IsActive: !!row.IsActive,
+    };
+  }
+
   const result = await pool
     .request()
     .input('id', sql.Int, id)

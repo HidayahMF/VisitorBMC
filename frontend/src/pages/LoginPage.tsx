@@ -7,6 +7,9 @@ import { DevFillButton } from '../components/DevFillButton';
 export function LoginPage() {
   const [nip, setNip] = useState('');
   const [birthdate, setBirthdate] = useState('');
+  const [username, setUsername] = useState('');
+  const [systemPassword, setSystemPassword] = useState('');
+  const [loginMode, setLoginMode] = useState<'employee' | 'system'>('employee');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -21,7 +24,7 @@ export function LoginPage() {
     setIsSubmitting(true);
     setError('');
     try {
-      await login(nip.trim(), birthdate);
+       await login(loginMode === 'employee' ? nip.trim() : username.trim(), loginMode === 'employee' ? birthdate : systemPassword);
       navigate('/dashboard');
     } catch (error) {
       setError(error instanceof Error ? error.message : 'NIP atau tanggal lahir tidak valid.');
@@ -41,13 +44,17 @@ export function LoginPage() {
       </section>
       <section className="login-panel">
         <div className="login-card">
-          <h1>Welcome</h1>
-          <p className="login-helper">Halaman ini digunakan Security dan Admin untuk mengelola kunjungan, check-in, dan checkout.</p>
+           <h1>Welcome</h1>
+           <p className="login-helper">Masuk untuk mengelola kunjungan, check-in, dan checkout.</p>
+           <div className="login-mode-switch" role="tablist" aria-label="Jenis login">
+             <button type="button" className={loginMode === 'employee' ? 'active' : ''} onClick={() => setLoginMode('employee')} role="tab" aria-selected={loginMode === 'employee'}>Pegawai</button>
+             <button type="button" className={loginMode === 'system' ? 'active' : ''} onClick={() => setLoginMode('system')} role="tab" aria-selected={loginMode === 'system'}>Akun sistem</button>
+           </div>
           <div className="login-visitor-route">
             <div><strong>Anda visitor?</strong><span>Isi data kunjungan dan Safety Induction tanpa membuat akun.</span></div>
             <button type="button" onClick={() => navigate('/visitor/register')}>Mulai registrasi visitor</button>
           </div>
-          <div className="mb-5 flex flex-wrap gap-2">
+           {loginMode === 'employee' && <div className="mb-5 flex flex-wrap gap-2">
             <DevFillButton
               label="Isi data contoh Admin"
               onClick={() => { setNip('3490'); setBirthdate('110408'); }}
@@ -56,14 +63,14 @@ export function LoginPage() {
               label="Isi data contoh Security"
               onClick={() => { setNip('0377'); setBirthdate('030504'); }}
             />
-          </div>
+           </div>}
         {error && (
           <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm" role="alert">
             {error}
           </div>
         )}
         <form onSubmit={handleSubmit}>
-          <div>
+           {loginMode === 'employee' ? <><div>
             <label className="login-label" htmlFor="nip">NIP</label>
             <input
               id="nip"
@@ -76,8 +83,8 @@ export function LoginPage() {
               required
               disabled={isSubmitting}
             />
-          </div>
-          <div>
+           </div>
+           <div>
             <label className="login-label" htmlFor="birthdate">TANGGAL LAHIR</label>
             <input
               id="birthdate"
@@ -90,7 +97,14 @@ export function LoginPage() {
               required
               disabled={isSubmitting}
             />
-          </div>
+           </div></> : <><div>
+             <label className="login-label" htmlFor="username">USERNAME</label>
+             <input id="username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username akun sistem" autoComplete="username" className="w-full" required disabled={isSubmitting} />
+           </div>
+           <div>
+             <label className="login-label" htmlFor="system-password">PASSWORD</label>
+             <input id="system-password" type="password" value={systemPassword} onChange={(e) => setSystemPassword(e.target.value)} placeholder="Password akun sistem" autoComplete="current-password" className="w-full" required disabled={isSubmitting} />
+           </div></>}
           <button
             type="submit"
             disabled={isSubmitting}

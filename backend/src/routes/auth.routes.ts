@@ -3,6 +3,7 @@ import { env } from '../config/env';
 import { AppError } from '../middleware/errorHandler';
 import {
   findUserForLogin,
+  findPasswordUserForLogin,
   comparePassword,
   generateToken,
   getUserById,
@@ -27,7 +28,7 @@ export async function login(
       return;
     }
 
-    const user = await findUserForLogin(username);
+    const user = await findPasswordUserForLogin(username) ?? await findUserForLogin(username);
 
     if (!user || !user.IsActive) {
       await tryLogAudit({
