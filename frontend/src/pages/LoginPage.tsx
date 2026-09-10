@@ -9,7 +9,7 @@ export function LoginPage() {
   const [birthdate, setBirthdate] = useState('');
   const [username, setUsername] = useState('');
   const [systemPassword, setSystemPassword] = useState('');
-  const [loginMode, setLoginMode] = useState<'employee' | 'system'>('employee');
+  const [loginMode, setLoginMode] = useState<'employee' | 'system'>('system');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -48,7 +48,7 @@ export function LoginPage() {
            <p className="login-helper">Masuk untuk mengelola kunjungan, check-in, dan checkout.</p>
            <div className="login-mode-switch" role="tablist" aria-label="Jenis login">
              <button type="button" className={loginMode === 'employee' ? 'active' : ''} onClick={() => setLoginMode('employee')} role="tab" aria-selected={loginMode === 'employee'}>Pegawai</button>
-             <button type="button" className={loginMode === 'system' ? 'active' : ''} onClick={() => setLoginMode('system')} role="tab" aria-selected={loginMode === 'system'}>Akun sistem</button>
+             <button type="button" className={loginMode === 'system' ? 'active' : ''} onClick={() => setLoginMode('system')} role="tab" aria-selected={loginMode === 'system'}>Security</button>
            </div>
           <div className="login-visitor-route">
             <div><strong>Anda visitor?</strong><span>Isi data kunjungan dan Safety Induction tanpa membuat akun.</span></div>
