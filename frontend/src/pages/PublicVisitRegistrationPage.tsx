@@ -38,6 +38,7 @@ export function PublicVisitRegistrationPage() {
   const hostSearchTimer = useRef<number | undefined>(undefined);
   const visitorSearchTimer = useRef<number | undefined>(undefined);
   const companyFieldRef = useRef<HTMLDivElement>(null);
+  const companySearchRequest = useRef(0);
 
   useEffect(() => {
     void listPublicCompanies().then(setCompanyResults).catch(() => setCompanyResults([]));
@@ -94,6 +95,19 @@ export function PublicVisitRegistrationPage() {
   function selectCompany(company: Company) {
     setCompanyName(company.companyName);
     setCompanyOpen(false);
+  }
+
+  function handleCompanyChange(value: string) {
+    setCompanyName(value);
+    setCompanyOpen(true);
+    const requestId = ++companySearchRequest.current;
+    void listPublicCompanies(100, value.trim() || undefined)
+      .then((companies) => {
+        if (requestId === companySearchRequest.current) setCompanyResults(companies);
+      })
+      .catch(() => {
+        if (requestId === companySearchRequest.current) setCompanyResults([]);
+      });
   }
 
   async function handleCreateCompany() {
@@ -240,7 +254,7 @@ export function PublicVisitRegistrationPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="relative" ref={companyFieldRef}>
                <label className="text-sm font-medium" htmlFor="public-company">{t('publicRegistration.companyLabel')} *</label>
-               <input id="public-company" className="public-form-input mt-1 w-full" value={companyName} onChange={(event) => { setCompanyName(event.target.value); setCompanyOpen(true); }} onFocus={() => setCompanyOpen(true)} placeholder={t('publicRegistration.companyPlaceholder')} autoComplete="off" required aria-invalid={Boolean(fieldErrors.company)} aria-describedby="public-company-help public-company-error" />
+               <input id="public-company" className="public-form-input mt-1 w-full" value={companyName} onChange={(event) => handleCompanyChange(event.target.value)} onFocus={() => setCompanyOpen(true)} placeholder={t('publicRegistration.companyPlaceholder')} autoComplete="off" required aria-invalid={Boolean(fieldErrors.company)} aria-describedby="public-company-help public-company-error" />
               {companyOpen && <div className="public-host-results" role="listbox">
                 {companyResults.filter((company) => company.companyName.toLowerCase().includes(companyName.toLowerCase())).map((company) => <button key={company.id} type="button" className="public-host-option" onMouseDown={(event) => event.preventDefault()} onClick={() => selectCompany(company)}>{company.companyName}</button>)}
                 <button type="button" className="public-host-option public-create-option" onMouseDown={(event) => event.preventDefault()} onClick={() => { setShowNewCompany(true); setCompanyOpen(false); }}><strong>+ Buat perusahaan baru</strong><span>Jika belum ada di daftar perusahaan BMC</span></button>
