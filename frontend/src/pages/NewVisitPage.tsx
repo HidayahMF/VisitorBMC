@@ -459,7 +459,7 @@ export function NewVisitPage() {
              <label htmlFor="new-visit-category" className="block text-sm font-medium mb-1">Kategori Keperluan Kunjungan <span aria-hidden="true">*</span></label>
              <select id="new-visit-category" value={purposeCategory} onChange={(e) => setPurposeCategory(e.target.value as 'MEETING' | 'TECHNICAL_SUPPORT' | '')} className="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-4" required>
                <option value="">Pilih kategori...</option>
-               <option value="MEETING">Meeting</option>
+               <option value="MEETING">Kirim Barang / Meeting</option>
                <option value="TECHNICAL_SUPPORT">Technical Support (Teknisi)</option>
              </select>
              <label htmlFor="new-visit-purpose" className="block text-sm font-medium mb-1">Tujuan Kunjungan <span aria-hidden="true">*</span></label>
