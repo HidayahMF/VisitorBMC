@@ -18,6 +18,7 @@ export interface Visit {
   CompanyName: string;
   HostName: string;
   Purpose: string;
+  PurposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
   VisitDate: string;
   CheckInTime: string | null;
   CheckOutTime: string | null;

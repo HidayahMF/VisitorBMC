@@ -8,6 +8,7 @@ export interface InductionContent {
   SortOrder: number;
   IsRequired: boolean;
   IsActive: boolean;
+  PurposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
   CreatedAt: string;
 }
 

@@ -43,12 +43,13 @@ const upload = multer({
 });
 
 export async function getActiveContents(
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ) {
   try {
-    const data = await getActiveInductionWithContents();
+    const category = req.query.category === 'MEETING' || req.query.category === 'TECHNICAL_SUPPORT' ? req.query.category : undefined;
+    const data = await getActiveInductionWithContents(category);
     res.json(data);
   } catch (error) {
     next(error);
@@ -60,19 +61,21 @@ export async function tokenWorkflow(req: Request, res: Response, next: NextFunct
 
 export async function publicRegister(req: Request, res: Response, next: NextFunction) {
   try {
-    const { companyName, hostName, purpose, visitors } = req.body as {
+     const { companyName, hostName, purpose, purposeCategory, visitors } = req.body as {
       companyName?: string;
       hostName?: string;
-      purpose?: string;
+       purpose?: string;
+       purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
       visitors?: Array<{ name?: string; phoneNumber?: string }>;
     };
-    if (!companyName || !hostName || !purpose || !Array.isArray(visitors)) {
+     if (!companyName || !hostName || !purpose || !purposeCategory || !Array.isArray(visitors)) {
       throw new AppError('Company, host, purpose, and visitors are required', 400);
     }
     res.status(201).json(await createPublicVisit({
       companyName,
       hostName,
-      purpose,
+       purpose,
+       purposeCategory,
       visitors: visitors.map((visitor) => ({ name: visitor.name ?? '', phoneNumber: visitor.phoneNumber })),
       ipAddress: req.ip,
     }));
@@ -138,12 +141,13 @@ export async function completeGroup(req: Request, res: Response, next: NextFunct
 }
 
 export async function managedContents(
-  _req: AuthenticatedRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
 ) {
   try {
-    res.json(await listManagedInductionContents());
+    const category = req.query.category === 'MEETING' || req.query.category === 'TECHNICAL_SUPPORT' ? req.query.category : undefined;
+    res.json(await listManagedInductionContents(category));
   } catch (error) {
     next(error);
   }
@@ -169,7 +173,8 @@ export const uploadContent = [upload.single('file'), async (
       file: req.file,
       contentType,
       title: typeof req.body.title === 'string' ? req.body.title : undefined,
-      description: typeof req.body.description === 'string' ? req.body.description : undefined,
+       description: typeof req.body.description === 'string' ? req.body.description : undefined,
+       purposeCategory: req.body.purposeCategory === 'MEETING' ? 'MEETING' : 'TECHNICAL_SUPPORT',
     });
     res.status(201).json(content);
   } catch (error) {

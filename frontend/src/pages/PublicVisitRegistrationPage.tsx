@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { registerPublicVisit } from '../api/safety-inductions.api';
-import { listPublicEmployees, searchPublicEmployees, type Employee } from '../api/hris.api';
+import { searchPublicEmployees, type Employee } from '../api/hris.api';
 import { createPublicCompany, listPublicCompanies } from '../api/companies.api';
 import { type Company } from '../types/company';
 import { DevFillButton } from '../components/DevFillButton';
@@ -23,6 +23,7 @@ export function PublicVisitRegistrationPage() {
   const [hostResults, setHostResults] = useState<Employee[]>([]);
   const [hostOpen, setHostOpen] = useState(false);
   const [purpose, setPurpose] = useState('');
+  const [purposeCategory, setPurposeCategory] = useState<'MEETING' | 'TECHNICAL_SUPPORT' | ''>('');
   const [visitors, setVisitors] = useState<VisitorDraft[]>([]);
   const [visitorSearch, setVisitorSearch] = useState('');
   const [visitorMatches, setVisitorMatches] = useState<PublicVisitorMatch[]>([]);
@@ -115,25 +116,28 @@ export function PublicVisitRegistrationPage() {
 
   async function fillExample() {
     try {
-      const companies = companyResults.length > 0 ? companyResults : await listPublicCompanies();
-      const company = companies[0];
-      if (!company) {
-        setError('Belum ada perusahaan aktif di master data.');
-        return;
-      }
-      const employees = await listPublicEmployees(50);
-      const host = employees[0];
-      setCompanyName(company.companyName);
+       const brajaCompanies = await listPublicCompanies(100, 'Braja Mukti Cakra');
+       const targetCompany = brajaCompanies.find((item) => item.companyName.toLowerCase().includes('braja mukti cakra'));
+       if (!targetCompany) {
+         setError('Perusahaan Braja Mukti Cakra belum tersedia di master data.');
+         return;
+       }
+       const host = 'Hidayah Muhammad Fadillah';
+       setCompanyResults((current) => [
+         targetCompany,
+         ...current.filter((item) => item.id !== targetCompany.id),
+       ]);
+       setCompanyName(targetCompany.companyName);
       setCompanyOpen(false);
-      setHostName(host?.name ?? '');
+       setHostName(host);
       setHostOpen(false);
       setHostResults([]);
-      setPurpose('Meeting development test');
-      setVisitors([
-        { name: 'Visitor Development Test 1', phoneNumber: '081234567890' },
-        { name: 'Visitor Development Test 2', phoneNumber: '081234567891' },
-      ]);
-      if (!host) setError('Perusahaan terisi, tetapi data host HRIS belum ditemukan.');
+       setPurpose('Meeting development test');
+       setPurposeCategory('MEETING');
+       setVisitors([
+         { name: 'Pengunjung Test 1', phoneNumber: '' },
+         { name: 'Pengunjung Test 2', phoneNumber: '' },
+       ]);
     } catch {
       setError('Gagal mengambil data contoh dari master perusahaan atau HRIS.');
     }
@@ -196,14 +200,16 @@ export function PublicVisitRegistrationPage() {
     if (!companyName || !selectedCompanyId) nextErrors.company = t('publicRegistration.companyRequired');
     if (!hostName.trim()) nextErrors.host = t('publicRegistration.hostRequired');
     if (!purpose.trim()) nextErrors.purpose = t('publicRegistration.purposeRequired');
+    if (!purposeCategory) nextErrors.purposeCategory = 'Kategori keperluan kunjungan wajib dipilih.';
     if (visitors.length === 0) nextErrors.visitors = t('publicRegistration.visitorsRequired');
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
     setSubmitting(true);
     setError('');
     try {
-      const result = await registerPublicVisit({ companyName, hostName, purpose, visitors });
-      navigate(`/safety-induction/${result.token}`);
+       const result = await registerPublicVisit({ companyName, hostName, purpose, purposeCategory, visitors });
+       if (result.token) navigate(`/safety-induction/${result.token}`);
+       else setError(`Registrasi kunjungan ${result.visitCode} berhasil. Tidak ada konten Safety Induction aktif untuk kategori ini.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Registrasi gagal. Silakan coba lagi.');
     } finally {
@@ -249,7 +255,8 @@ export function PublicVisitRegistrationPage() {
               {hostOpen && hostResults.length > 0 && <div className="public-host-results" role="listbox">{hostResults.map((employee) => <button key={employee.username} type="button" className="public-host-option" onMouseDown={(event) => event.preventDefault()} onClick={() => selectHost(employee)}><strong>{employee.name}</strong></button>)}</div>}
             </div>
           </div>
-           <label className="block text-sm font-medium" htmlFor="public-purpose">{t('publicRegistration.purposeLabel')} *<textarea id="public-purpose" className="public-form-input mt-1 w-full" rows={3} value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder={t('publicRegistration.purposePlaceholder')} required aria-invalid={Boolean(fieldErrors.purpose)} aria-describedby="public-purpose-help public-purpose-error" /></label><p id="public-purpose-help" className="public-field-help">{t('publicRegistration.purposeHelper')}</p>{fieldErrors.purpose && <p id="public-purpose-error" className="public-field-error" role="alert">{fieldErrors.purpose}</p>}
+            <label className="block text-sm font-medium" htmlFor="public-purpose">{t('publicRegistration.purposeLabel')} *<textarea id="public-purpose" className="public-form-input mt-1 w-full" rows={3} value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder={t('publicRegistration.purposePlaceholder')} required aria-invalid={Boolean(fieldErrors.purpose)} aria-describedby="public-purpose-help public-purpose-error" /></label><p id="public-purpose-help" className="public-field-help">{t('publicRegistration.purposeHelper')}</p>{fieldErrors.purpose && <p id="public-purpose-error" className="public-field-error" role="alert">{fieldErrors.purpose}</p>}
+            <label className="block text-sm font-medium mt-4" htmlFor="public-purpose-category">Kategori Keperluan Kunjungan *<select id="public-purpose-category" className="public-form-input mt-1 w-full" value={purposeCategory} onChange={(event) => setPurposeCategory(event.target.value as 'MEETING' | 'TECHNICAL_SUPPORT' | '')} required><option value="">Pilih kategori...</option><option value="MEETING">Meeting</option><option value="TECHNICAL_SUPPORT">Technical Support (Teknisi)</option></select></label>{fieldErrors.purposeCategory && <p className="public-field-error" role="alert">{fieldErrors.purposeCategory}</p>}
           </section>
            <section aria-labelledby="public-visitors-title">
               <div className="mb-3 flex items-start justify-between gap-3"><div><h2 id="public-visitors-title" className="font-semibold">{t('publicRegistration.visitorInformation')}</h2><p className="text-xs text-slate-500">{t('publicRegistration.visitorInformationDescription')}</p></div><button type="button" onClick={() => setShowNewVisitor((current) => !current)} className="text-sm font-semibold text-blue-700" disabled={!selectedCompanyId || visitors.length >= 20}>{showNewVisitor ? t('publicRegistration.cancelAdd') : `+ ${t('publicRegistration.addNewVisitor')}`}</button></div>

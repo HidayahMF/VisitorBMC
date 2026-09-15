@@ -35,6 +35,7 @@ export function NewVisitPage() {
   const [hostResults, setHostResults] = useState<Employee[]>([]);
   const [hostOpen, setHostOpen] = useState(false);
   const [purpose, setPurpose] = useState('');
+  const [purposeCategory, setPurposeCategory] = useState<'MEETING' | 'TECHNICAL_SUPPORT' | ''>('');
   const [visitDate, setVisitDate] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -212,7 +213,8 @@ export function NewVisitPage() {
       setCompanyResults(companies);
       setHostName('Hidayah Muhammad Fadillah');
       setHostQuery('Hidayah Muhammad Fadillah');
-      setPurpose('Development workflow test');
+       setPurpose('Development workflow test');
+       setPurposeCategory('MEETING');
       setVisitors(exampleVisitors.slice(0, 2));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Gagal mengisi data contoh');
@@ -275,6 +277,7 @@ export function NewVisitPage() {
       const result = await safetyCheck({
         companyId,
         visitorIds,
+        purposeCategory: purposeCategory === 'MEETING' || purposeCategory === 'TECHNICAL_SUPPORT' ? purposeCategory : undefined,
       });
 
       if (requestId !== safetyRequestId.current) return;
@@ -292,7 +295,7 @@ export function NewVisitPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedCompany || !visitorIdsKey) {
+    if (!purposeCategory || !selectedCompany || !visitorIdsKey) {
       safetyStartedKey.current = null;
       setSafetyResult(null);
       setSafetyResultKey(null);
@@ -305,17 +308,18 @@ export function NewVisitPage() {
       visitorIdsKey.split(',').map(Number),
       safetyKey,
     );
-  }, [selectedCompany?.id, safetyKey, visitorIdsKey, runSafetyCheck]);
+  }, [purposeCategory, selectedCompany?.id, safetyKey, visitorIdsKey, runSafetyCheck]);
 
   async function handleCreateVisit() {
-    if (!selectedCompany || !hostName || !purpose || !visitDate || visitors.length === 0) return;
+    if (!selectedCompany || !hostName || !purpose || !purposeCategory || !visitDate || visitors.length === 0) return;
     setSubmitting(true);
     setError('');
     try {
       const visit = await createVisit({
         companyId: selectedCompany.id,
         hostName,
-        purpose,
+         purpose,
+         purposeCategory,
         visitDate,
         visitorIds: visitors.map(v => v.id),
       });
@@ -326,7 +330,7 @@ export function NewVisitPage() {
     setSubmitting(false);
   }
 
-  const canProceedStep1 = selectedCompany && hostName.trim() && purpose.trim() && visitDate;
+  const canProceedStep1 = selectedCompany && hostName.trim() && purposeCategory && purpose.trim() && visitDate;
   const canProceedStep2 = visitors.length > 0;
   const canProceedStep3 = hasCurrentSafetyResult && !safetyLoading;
 
@@ -452,6 +456,12 @@ export function NewVisitPage() {
               )}
             </div>
 
+             <label htmlFor="new-visit-category" className="block text-sm font-medium mb-1">Kategori Keperluan Kunjungan <span aria-hidden="true">*</span></label>
+             <select id="new-visit-category" value={purposeCategory} onChange={(e) => setPurposeCategory(e.target.value as 'MEETING' | 'TECHNICAL_SUPPORT' | '')} className="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-4" required>
+               <option value="">Pilih kategori...</option>
+               <option value="MEETING">Meeting</option>
+               <option value="TECHNICAL_SUPPORT">Technical Support (Teknisi)</option>
+             </select>
              <label htmlFor="new-visit-purpose" className="block text-sm font-medium mb-1">Tujuan Kunjungan <span aria-hidden="true">*</span></label>
             <input
                id="new-visit-purpose" type="text"
@@ -604,7 +614,7 @@ export function NewVisitPage() {
                     </div>
                   </div>
                 ))}
-              </div>
+                     </div>
             )}
 
             <div className="flex justify-between">
@@ -621,17 +631,11 @@ export function NewVisitPage() {
           </div>
         )}
 
-        {step === 3 && (
-          <div className="bg-white border rounded p-6">
-            <h2 className="font-medium mb-4">Safety Induction Check</h2>
-
-            {safetyLoading ? (
-              <p className="text-sm text-gray-500">Checking safety status...</p>
-            ) : hasCurrentSafetyResult && safetyResult ? (
-              <>
-                <div className="mb-4 p-3 bg-gray-50 rounded text-sm">
-                  <p>{safetyResult.summary.totalVisitors} visitors · {safetyResult.summary.cleared} cleared · {safetyResult.summary.requiresInduction} require induction</p>
-                </div>
+         {step === 3 && (
+           <div className="bg-white border rounded p-6">
+             <h2 className="font-medium mb-4">Safety Induction Check</h2>
+              {safetyLoading ? <p className="text-sm text-gray-500">Checking safety status...</p> : hasCurrentSafetyResult && safetyResult ? <>
+               <div className="mb-4 p-3 bg-gray-50 rounded text-sm"><p>{safetyResult.summary.totalVisitors} visitors · {safetyResult.summary.cleared} cleared · {safetyResult.summary.requiresInduction} require induction</p></div>
 
                 <div className="space-y-2 mb-4">
                   {safetyResult.visitors.map(v => (
@@ -643,9 +647,9 @@ export function NewVisitPage() {
                             {v.reason === 'NEVER_COMPLETED' && 'Never completed'}
                             {v.reason === 'EXPIRED' && v.validUntil && `Expired ${new Date(v.validUntil).toLocaleDateString()}`}
                             {v.reason === 'NEW_VERSION_REQUIRED' && 'New version required'}
-                          </p>
-                        )}
-                      </div>
+                           </p>
+                         )}
+                       </div>
                       {getStatusBadge(v.status)}
                     </div>
                   ))}
@@ -663,7 +667,7 @@ export function NewVisitPage() {
                   </button>
                 </div>
               </>
-            ) : (
+               : (
               <div className="flex justify-between">
                 <button type="button" onClick={() => setStep(2)} className="px-4 py-2 border text-sm rounded">Back</button>
                 <button
@@ -678,10 +682,10 @@ export function NewVisitPage() {
                 >
                   Run Check
                 </button>
-              </div>
-            )}
-          </div>
-        )}
+               </div>
+              )}
+            </div>
+          )}
 
         {step === 4 && (
           <div className="bg-white border rounded p-6">
@@ -715,7 +719,7 @@ export function NewVisitPage() {
                   ))}
                 </div>
               </div>
-              {safetyResult && (
+               {purposeCategory === 'TECHNICAL_SUPPORT' && safetyResult && (
                 <div>
                   <p className="text-gray-500 text-xs">Safety Summary</p>
                   <p className="font-medium">

@@ -41,7 +41,8 @@ export function SafetyInductionPage() {
   async function loadContents() {
     try {
       if (!token) throw new Error('Invalid induction token');
-      const [data, workflowData] = await Promise.all([getActiveInductionContents(), getInductionWorkflow(token)]);
+       const workflowData = await getInductionWorkflow(token);
+       const data = await getActiveInductionContents(workflowData.purposeCategory);
       setInduction(data.induction);
       setContents(data.contents);
       setWorkflow(workflowData);

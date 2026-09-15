@@ -61,10 +61,11 @@ export async function create(
   next: NextFunction,
 ) {
   try {
-    const { companyId, hostName, purpose, visitDate, visitorIds } = req.body as {
+    const { companyId, hostName, purpose, purposeCategory, visitDate, visitorIds } = req.body as {
       companyId?: number;
       hostName?: string;
       purpose?: string;
+      purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
       visitDate?: string;
       visitorIds?: number[];
     };
@@ -78,6 +79,9 @@ export async function create(
     if (!purpose) {
       throw new AppError('Purpose is required', 400);
     }
+    if (!purposeCategory) {
+      throw new AppError('Purpose category is required', 400);
+    }
     if (!visitDate) {
       throw new AppError('Visit date is required', 400);
     }
@@ -86,7 +90,7 @@ export async function create(
     }
 
     const visit = await createVisit(
-      { companyId, hostName, purpose, visitDate, visitorIds, ipAddress: req.ip },
+      { companyId, hostName, purpose, purposeCategory, visitDate, visitorIds, ipAddress: req.ip },
       req.user!.userId
     );
 
@@ -102,9 +106,10 @@ export async function safetyCheckHandler(
   next: NextFunction,
 ) {
   try {
-    const { companyId, visitorIds } = req.body as {
+    const { companyId, visitorIds, purposeCategory } = req.body as {
       companyId?: number;
       visitorIds?: number[];
+      purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
     };
 
     if (!companyId) {
@@ -114,7 +119,7 @@ export async function safetyCheckHandler(
       throw new AppError('Visitor IDs are required', 400);
     }
 
-    const result = await safetyCheck({ companyId, visitorIds });
+    const result = await safetyCheck({ companyId, visitorIds, purposeCategory });
     res.json(result);
   } catch (error) {
     next(error);

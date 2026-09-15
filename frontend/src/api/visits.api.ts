@@ -28,6 +28,7 @@ export async function createVisit(data: {
   companyId: number;
   hostName: string;
   purpose: string;
+  purposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
   visitDate: string;
   visitorIds: number[];
 }): Promise<VisitDetail> {
@@ -40,6 +41,7 @@ export async function createVisit(data: {
 export async function safetyCheck(data: {
   companyId: number;
   visitorIds: number[];
+  purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
 }): Promise<SafetyCheckSummary> {
   return apiClient<SafetyCheckSummary>('/visits/safety-check', {
     method: 'POST',

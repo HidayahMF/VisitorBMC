@@ -31,8 +31,10 @@ export async function searchCompanies(q: string): Promise<Company[]> {
   return result.map(toCompany);
 }
 
-export async function listPublicCompanies(limit = 100): Promise<Company[]> {
-  const result = await apiClient<{ data: Record<string, unknown>[] }>('/companies/public?active=true&limit=' + limit);
+export async function listPublicCompanies(limit = 100, q?: string): Promise<Company[]> {
+  const query = new URLSearchParams({ active: 'true', limit: String(limit) });
+  if (q) query.set('q', q);
+  const result = await apiClient<{ data: Record<string, unknown>[] }>(`/companies/public?${query.toString()}`);
   return result.data.map(toCompany);
 }
 

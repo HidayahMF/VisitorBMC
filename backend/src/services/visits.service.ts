@@ -1,6 +1,6 @@
 import { getDbConnection, sql } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
-import { checkVisitorSafetyClearance } from './safety-clearance.service';
+import { checkVisitorSafetyClearance, type VisitorSafetyClearance } from './safety-clearance.service';
 import { logAudit } from './audit-log.service';
 
 export interface IVisit {
@@ -10,6 +10,7 @@ export interface IVisit {
   CompanyName: string;
   HostName: string;
   Purpose: string;
+  PurposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
   VisitDate: Date;
   CheckInTime: Date | null;
   CheckOutTime: Date | null;
@@ -58,6 +59,7 @@ export interface ICreateVisitParams {
   companyId: number;
   hostName: string;
   purpose: string;
+  purposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
   visitDate: string;
   visitorIds: number[];
   ipAddress?: string;
@@ -73,6 +75,7 @@ function toVisit(row: IVisit): IVisit {
     CompanyName: row.CompanyName,
     HostName: row.HostName,
     Purpose: row.Purpose,
+    PurposeCategory: row.PurposeCategory,
     VisitDate: row.VisitDate,
     CheckInTime: row.CheckInTime || null,
     CheckOutTime: row.CheckOutTime || null,
@@ -180,7 +183,7 @@ export async function listVisits(params: {
   const total = countResult.recordset[0].total;
 
   const dataResult = await request.query(`
-     SELECT v.Id, v.VisitCode, v.CompanyId, c.CompanyName, v.HostName, v.Purpose, v.VisitDate,
+      SELECT v.Id, v.VisitCode, v.CompanyId, c.CompanyName, v.HostName, v.Purpose, v.PurposeCategory, v.VisitDate,
             v.CheckInTime, v.CheckOutTime, v.Status, v.CreatedBy, v.CheckedInBy, v.CheckedOutBy,
              v.CreatedAt, v.UpdatedAt,
              (SELECT COUNT(*) FROM vms.VisitVisitors vv2 WHERE vv2.VisitId = v.Id) AS VisitorCount
@@ -210,7 +213,7 @@ export async function getVisitById(id: number): Promise<IVisitDetail | null> {
     .request()
     .input('id', sql.Int, id)
     .query(`
-      SELECT v.Id, v.VisitCode, v.CompanyId, v.HostName, v.Purpose, v.VisitDate,
+       SELECT v.Id, v.VisitCode, v.CompanyId, v.HostName, v.Purpose, v.PurposeCategory, v.VisitDate,
              v.CheckInTime, v.CheckOutTime, v.Status, v.CreatedBy, v.CheckedInBy, v.CheckedOutBy,
              v.CreatedAt, v.UpdatedAt,
              c.CompanyName
@@ -236,7 +239,8 @@ export async function getVisitById(id: number): Promise<IVisitDetail | null> {
       Id: visitRow.Id,
       VisitCode: visitRow.VisitCode,
       HostName: visitRow.HostName,
-      Purpose: visitRow.Purpose,
+       Purpose: visitRow.Purpose,
+       PurposeCategory: visitRow.PurposeCategory,
       VisitDate: visitRow.VisitDate,
       CheckInTime: visitRow.CheckInTime || null,
       CheckOutTime: visitRow.CheckOutTime || null,
@@ -251,10 +255,9 @@ export async function getVisitById(id: number): Promise<IVisitDetail | null> {
       SafetySummary: { totalVisitors: 0, cleared: 0, requiresInduction: 0 },
     };
   }
-  const clearance = await checkVisitorSafetyClearance(
-    visitorsResult.recordset.map((row) => row.Id),
-    visitRow.CompanyId,
-  );
+  const clearance: { visitors: VisitorSafetyClearance[] } = visitRow.PurposeCategory === 'TECHNICAL_SUPPORT'
+    ? await checkVisitorSafetyClearance(visitorsResult.recordset.map((row) => row.Id), visitRow.CompanyId)
+    : { visitors: visitorsResult.recordset.map((row) => ({ visitorId: row.Id, visitorName: row.VisitorName, status: 'VALID' as const })) };
   const visitors: IVisitVisitor[] = visitorsResult.recordset.map((row) => {
     const safety = clearance.visitors.find((item) => item.visitorId === row.Id);
     return {
@@ -274,7 +277,8 @@ export async function getVisitById(id: number): Promise<IVisitDetail | null> {
     Id: visitRow.Id,
     VisitCode: visitRow.VisitCode,
     HostName: visitRow.HostName,
-    Purpose: visitRow.Purpose,
+     Purpose: visitRow.Purpose,
+     PurposeCategory: visitRow.PurposeCategory,
     VisitDate: visitRow.VisitDate,
     CheckInTime: visitRow.CheckInTime || null,
     CheckOutTime: visitRow.CheckOutTime || null,
@@ -298,9 +302,9 @@ export async function getVisitById(id: number): Promise<IVisitDetail | null> {
 }
 
 export async function createVisit(params: ICreateVisitParams, createdBy: number): Promise<IVisitDetail> {
-  const { companyId, hostName, purpose, visitDate, visitorIds } = params;
+  const { companyId, hostName, purpose, purposeCategory, visitDate, visitorIds } = params;
 
-  if (!Number.isInteger(companyId) || !hostName?.trim() || !purpose?.trim() || !visitDate || !Array.isArray(visitorIds) || !visitorIds.length) {
+  if (!Number.isInteger(companyId) || !hostName?.trim() || !purpose?.trim() || !['MEETING', 'TECHNICAL_SUPPORT'].includes(purposeCategory) || !visitDate || !Array.isArray(visitorIds) || !visitorIds.length) {
     throw new AppError('Missing required fields', 400);
   }
 
@@ -346,8 +350,14 @@ export async function createVisit(params: ICreateVisitParams, createdBy: number)
     await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
     transactionStarted = true;
 
-    const clearance = await checkVisitorSafetyClearance(uniqueVisitorIds, companyId);
-    const initialStatus = clearance.summary.requiresInduction > 0 ? 'PENDING_INDUCTION' : 'READY_FOR_CHECKIN';
+    const contentResult = await pool.request()
+      .input('purposeCategory', sql.VarChar(30), purposeCategory)
+      .query(`SELECT COUNT(*) AS count FROM vms.SafetyInductionContents sic INNER JOIN vms.SafetyInductions si ON si.Id = sic.SafetyInductionId WHERE si.IsActive = 1 AND sic.IsActive = 1 AND sic.PurposeCategory = @purposeCategory`);
+    const inductionEnabled = contentResult.recordset[0].count > 0;
+    const clearance = inductionEnabled ? await checkVisitorSafetyClearance(uniqueVisitorIds, companyId) : null;
+    const initialStatus = inductionEnabled && clearance?.summary.requiresInduction
+      ? 'PENDING_INDUCTION'
+      : 'READY_FOR_CHECKIN';
 
     const visitCode = await generateVisitCode(transaction, visitDate);
 
@@ -356,15 +366,16 @@ export async function createVisit(params: ICreateVisitParams, createdBy: number)
       .input('companyId', sql.Int, companyId)
       .input('hostName', sql.NVarChar(100), hostName.trim())
       .input('purpose', sql.NVarChar(255), purpose.trim())
+      .input('purposeCategory', sql.VarChar(30), purposeCategory)
       .input('visitDate', sql.Date, visitDate)
       .input('status', sql.VarChar(20), initialStatus)
       .input('createdBy', sql.Int, createdBy)
       .query(`
-        INSERT INTO vms.Visits (VisitCode, CompanyId, HostName, Purpose, VisitDate, Status, CreatedBy)
+         INSERT INTO vms.Visits (VisitCode, CompanyId, HostName, Purpose, PurposeCategory, VisitDate, Status, CreatedBy)
         OUTPUT INSERTED.Id, INSERTED.VisitCode, INSERTED.CompanyId, INSERTED.HostName, 
                INSERTED.Purpose, INSERTED.VisitDate, INSERTED.CheckInTime, INSERTED.CheckOutTime,
                INSERTED.Status, INSERTED.CreatedBy, INSERTED.CheckedOutBy, INSERTED.CreatedAt, INSERTED.UpdatedAt
-        VALUES (@visitCode, @companyId, @hostName, @purpose, @visitDate, @status, @createdBy)
+         VALUES (@visitCode, @companyId, @hostName, @purpose, @purposeCategory, @visitDate, @status, @createdBy)
       `);
 
     const visitId = visitResult.recordset[0].Id;
@@ -472,7 +483,15 @@ export async function checkVisitorDuplicate(params: {
 export async function safetyCheck(params: {
   companyId: number;
   visitorIds: number[];
+  purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
 }) {
+  const pool = await getDbConnection();
+  const contentResult = await pool.request()
+    .input('purposeCategory', sql.VarChar(30), params.purposeCategory ?? 'TECHNICAL_SUPPORT')
+    .query(`SELECT COUNT(*) AS count FROM vms.SafetyInductionContents sic INNER JOIN vms.SafetyInductions si ON si.Id = sic.SafetyInductionId WHERE si.IsActive = 1 AND sic.IsActive = 1 AND sic.PurposeCategory = @purposeCategory`);
+  if (contentResult.recordset[0].count === 0) {
+    return { safetyInduction: null, summary: { totalVisitors: params.visitorIds.length, valid: params.visitorIds.length, required: 0, expired: 0, requiresInduction: 0 }, visitors: [] };
+  }
   const check = await checkVisitorSafetyClearance(params.visitorIds, params.companyId);
   
   return {

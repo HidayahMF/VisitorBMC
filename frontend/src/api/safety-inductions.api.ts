@@ -1,8 +1,8 @@
 import { apiClient } from './client';
 import { type InductionContent, type InductionContentResponse, type InductionRecord } from '../types/induction';
 
-export async function getActiveInductionContents(): Promise<InductionContentResponse> {
-  return apiClient<InductionContentResponse>('/safety-inductions/active/contents');
+export async function getActiveInductionContents(category?: 'MEETING' | 'TECHNICAL_SUPPORT'): Promise<InductionContentResponse> {
+  return apiClient<InductionContentResponse>(`/safety-inductions/active/contents${category ? `?category=${category}` : ''}`);
 }
 
 export interface InductionWorkflow { visitId: number; visitCode: string; status: string; visitors: Array<{ visitorId: number; visitorName: string; safetyStatus: 'VALID' | 'REQUIRED' | 'EXPIRED'; needsInduction: boolean }>; requiredCount: number; completedCount: number; remainingCount: number; nextVisitorId: number | null; }
@@ -13,6 +13,7 @@ export async function registerPublicVisit(data: {
   companyName: string;
   hostName: string;
   purpose: string;
+  purposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
   visitors: Array<{ name: string; phoneNumber?: string }>;
 }): Promise<{ visitId: number; visitCode: string; token: string; expiresAt: string; visitors: Array<{ id: number; name: string }> }> {
   return apiClient('/safety-inductions/public/register', {
@@ -27,14 +28,15 @@ export async function getVisitorInductionHistory(visitorId: number): Promise<Ind
 export async function getInductionConfig() { return apiClient<Array<{ Id:number; Title:string; Version:number; ValidMonths:number; IsActive:boolean; ForceReinductionOnNewVersion:boolean }>>('/safety-inductions/manage/config'); }
 export async function updateInductionConfig(data: { validMonths:number; forceReinductionOnNewVersion:boolean }) { return apiClient('/safety-inductions/manage/config', { method:'PATCH', body:JSON.stringify(data) }); }
 
-export async function listManagedInductionContents(): Promise<InductionContent[]> {
-  return apiClient<InductionContent[]>('/safety-inductions/manage/contents');
+export async function listManagedInductionContents(category?: 'MEETING' | 'TECHNICAL_SUPPORT'): Promise<InductionContent[]> {
+  return apiClient<InductionContent[]>(`/safety-inductions/manage/contents${category ? `?category=${category}` : ''}`);
 }
 
 export async function uploadInductionContent(data: {
   file: File;
   title: string;
   description: string;
+  purposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
 }): Promise<InductionContent> {
   const form = new FormData();
   form.append('file', data.file);

@@ -31,6 +31,7 @@ export interface ISafetyInductionContent {
   SortOrder: number;
   IsRequired: boolean;
   IsActive: boolean;
+  PurposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
   CreatedAt: Date;
 }
 
@@ -43,6 +44,7 @@ export interface PublicInductionWorkflow {
   completedCount: number;
   remainingCount: number;
   nextVisitorId: number | null;
+  purposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
 }
 
 const PUBLIC_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
@@ -114,7 +116,7 @@ export async function completeGroupInductionByToken(
 export async function getPublicInductionWorkflow(visitId: number): Promise<PublicInductionWorkflow> {
   const pool = await getDbConnection();
   const visitResult = await pool.request().input('visitId', sql.Int, visitId).query(`
-    SELECT v.Id, v.VisitCode, v.CompanyId, v.Status
+    SELECT v.Id, v.VisitCode, v.CompanyId, v.Status, v.PurposeCategory
     FROM vms.Visits v WHERE v.Id = @visitId
   `);
   const visit = visitResult.recordset[0];
@@ -131,7 +133,7 @@ export async function getPublicInductionWorkflow(visitId: number): Promise<Publi
     return { visitorId: row.Id, visitorName: row.VisitorName, safetyStatus, needsInduction: safetyStatus !== 'VALID' };
   });
   const remaining = visitors.filter((visitor) => visitor.needsInduction);
-  return { visitId, visitCode: visit.VisitCode, status: visit.Status, visitors, requiredCount: remaining.length, completedCount: visitors.length - remaining.length, remainingCount: remaining.length, nextVisitorId: remaining[0]?.visitorId ?? null };
+  return { visitId, visitCode: visit.VisitCode, status: visit.Status, visitors, requiredCount: remaining.length, completedCount: visitors.length - remaining.length, remainingCount: remaining.length, nextVisitorId: remaining[0]?.visitorId ?? null, purposeCategory: visit.PurposeCategory };
 }
 
 export interface IVisitorInductionRecord {
@@ -169,6 +171,7 @@ export interface IPublicRegistrationParams {
   companyName: string;
   hostName: string;
   purpose: string;
+  purposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
   visitors: Array<{ name: string; phoneNumber?: string }>;
   ipAddress?: string;
 }
@@ -198,7 +201,7 @@ export async function createPublicVisit(
     .map((visitor) => ({ name: visitor.name.trim(), phoneNumber: visitor.phoneNumber?.trim() }))
     .filter((visitor) => visitor.name);
 
-  if (!companyName || !hostName || !purpose || visitors.length === 0 || visitors.length > 20) {
+   if (!companyName || !hostName || !purpose || !['MEETING', 'TECHNICAL_SUPPORT'].includes(params.purposeCategory) || visitors.length === 0 || visitors.length > 20) {
     throw new AppError('Company, host, purpose, and 1-20 visitors are required', 400);
   }
 
@@ -232,12 +235,16 @@ export async function createPublicVisit(
   const visit = await createVisit({
     companyId: company.Id,
     hostName,
-    purpose,
+     purpose,
+     purposeCategory: params.purposeCategory,
     visitDate: today,
     visitorIds: createdVisitors.map((visitor) => visitor.id),
     ipAddress: params.ipAddress,
   }, systemUserId);
-  const access = await issuePublicInductionToken(visit.Id);
+   const activeContents = await getActiveInductionWithContents(params.purposeCategory);
+   const access = activeContents.contents.length > 0
+     ? await issuePublicInductionToken(visit.Id)
+     : { token: '', expiresAt: new Date(0) };
 
   return {
     visitId: visit.Id,
@@ -248,17 +255,18 @@ export async function createPublicVisit(
   };
 }
 
-export async function getActiveInductionWithContents(): Promise<IInductionContentResponse> {
+export async function getActiveInductionWithContents(purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT'): Promise<IInductionContentResponse> {
   const config = await getActiveSafetyInductionConfig();
   const pool = await getDbConnection();
 
   const contentsResult = await pool
     .request()
     .input('inductionId', sql.Int, config.id)
+    .input('purposeCategory', sql.VarChar(30), purposeCategory ?? 'TECHNICAL_SUPPORT')
     .query(`
-      SELECT Id, SafetyInductionId, ContentType, ContentUrl, Title, Description, SortOrder, IsRequired, CreatedAt
+       SELECT Id, SafetyInductionId, ContentType, ContentUrl, Title, Description, SortOrder, IsRequired, IsActive, CreatedAt, PurposeCategory
       FROM vms.SafetyInductionContents
-      WHERE SafetyInductionId = @inductionId AND IsActive = 1
+       WHERE SafetyInductionId = @inductionId AND IsActive = 1 AND PurposeCategory = @purposeCategory
       ORDER BY SortOrder ASC
     `);
 
@@ -278,22 +286,26 @@ export async function getActiveInductionWithContents(): Promise<IInductionConten
       Description: row.Description,
       SortOrder: row.SortOrder,
       IsRequired: !!row.IsRequired,
-      IsActive: !!row.IsActive,
+       IsActive: !!row.IsActive,
+       PurposeCategory: row.PurposeCategory,
       CreatedAt: row.CreatedAt,
     })),
   };
 }
 
-export async function listManagedInductionContents(): Promise<ISafetyInductionContent[]> {
+export async function listManagedInductionContents(purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT'): Promise<ISafetyInductionContent[]> {
   const config = await getActiveSafetyInductionConfig();
   const pool = await getDbConnection();
-  const result = await pool.request()
+  const request = pool.request()
     .input('inductionId', sql.Int, config.id)
-    .query(`
+    .input('purposeCategory', sql.VarChar(30), purposeCategory ?? null);
+  const result = await request.query(`
       SELECT Id, SafetyInductionId, ContentType, ContentUrl, Title, Description,
              SortOrder, IsRequired, IsActive, CreatedAt
+             , PurposeCategory
       FROM vms.SafetyInductionContents
-      WHERE SafetyInductionId = @inductionId
+       WHERE SafetyInductionId = @inductionId
+         AND (@purposeCategory IS NULL OR PurposeCategory = @purposeCategory)
       ORDER BY SortOrder ASC, Id ASC
     `);
 
@@ -307,6 +319,7 @@ export async function listManagedInductionContents(): Promise<ISafetyInductionCo
     SortOrder: row.SortOrder,
     IsRequired: !!row.IsRequired,
     IsActive: !!row.IsActive,
+    PurposeCategory: row.PurposeCategory,
     CreatedAt: row.CreatedAt,
   }));
 }
@@ -316,6 +329,7 @@ export async function createInductionContent(params: {
   contentType: 'VIDEO' | 'IMAGE' | 'PDF';
   title?: string;
   description?: string;
+  purposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
 }): Promise<ISafetyInductionContent> {
   const config = await getActiveSafetyInductionConfig();
   const pool = await getDbConnection();
@@ -325,14 +339,15 @@ export async function createInductionContent(params: {
     .input('contentUrl', sql.NVarChar(500), `/uploads/safety-induction/${params.file.filename}`)
     .input('title', sql.NVarChar(200), params.title?.trim() || params.file.filename)
     .input('description', sql.NVarChar(1000), params.description?.trim() || null)
+    .input('purposeCategory', sql.VarChar(30), params.purposeCategory)
     .query(`
       INSERT INTO vms.SafetyInductionContents
-        (SafetyInductionId, ContentType, ContentUrl, Title, Description, SortOrder, IsRequired, IsActive)
+        (SafetyInductionId, ContentType, ContentUrl, Title, Description, SortOrder, IsRequired, IsActive, PurposeCategory)
       OUTPUT INSERTED.Id, INSERTED.SafetyInductionId, INSERTED.ContentType,
              INSERTED.ContentUrl, INSERTED.Title, INSERTED.Description,
-             INSERTED.SortOrder, INSERTED.IsRequired, INSERTED.IsActive, INSERTED.CreatedAt
-      SELECT @inductionId, @contentType, @contentUrl, @title, @description,
-             COALESCE(MAX(SortOrder), 0) + 1, 1, 0
+              INSERTED.SortOrder, INSERTED.IsRequired, INSERTED.IsActive, INSERTED.PurposeCategory, INSERTED.CreatedAt
+       SELECT @inductionId, @contentType, @contentUrl, @title, @description,
+              COALESCE(MAX(SortOrder), 0) + 1, 1, 0, @purposeCategory
       FROM vms.SafetyInductionContents
       WHERE SafetyInductionId = @inductionId
     `);
@@ -348,6 +363,7 @@ export async function createInductionContent(params: {
     SortOrder: row.SortOrder,
     IsRequired: !!row.IsRequired,
     IsActive: !!row.IsActive,
+    PurposeCategory: row.PurposeCategory,
     CreatedAt: row.CreatedAt,
   };
 }
