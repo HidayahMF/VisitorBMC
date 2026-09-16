@@ -45,7 +45,7 @@ app.get('/api/companies/public', publicInductionLimiter, companiesRoutes.list);
 app.post('/api/companies/public', publicInductionLimiter, companiesRoutes.create);
 app.get('/api/companies/:id', authenticate, companiesRoutes.getById);
 app.post('/api/companies', authenticate, companiesRoutes.create);
-app.put('/api/companies/:id', authenticate, authorize('ADMIN'), companiesRoutes.update);
+app.put('/api/companies/:id', authenticate, authorize('ADMIN', 'SECURITY'), companiesRoutes.update);
 app.patch('/api/companies/:id/status', authenticate, authorize('ADMIN', 'SECURITY'), companiesRoutes.updateStatus);
 app.delete('/api/companies/:id', authenticate, authorize('ADMIN', 'SECURITY'), companiesRoutes.remove);
 
