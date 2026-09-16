@@ -76,12 +76,12 @@ app.post('/api/safety-inductions/access/:visitId', authenticate, authorize('ADMI
   app.get('/api/hris/employees/public', publicInductionLimiter, hrisRoutes.search);
   app.get('/api/hris/employees/public-list', publicInductionLimiter, hrisRoutes.publicList);
   app.post('/api/safety-inductions/public/register', publicInductionLimiter, safetyInductionsRoutes.publicRegister);
-app.get('/api/safety-inductions/manage/contents', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.managedContents);
+app.get('/api/safety-inductions/manage/contents', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.managedContents);
 app.get('/api/safety-inductions/manage/config', authenticate, authorize('ADMIN'), safetyInductionsRoutes.config);
 app.patch('/api/safety-inductions/manage/config', authenticate, authorize('ADMIN'), safetyInductionsRoutes.updateConfig);
-app.post('/api/safety-inductions/manage/contents', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.uploadContent);
-app.patch('/api/safety-inductions/manage/contents/:id/status', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.updateContentStatus);
-app.delete('/api/safety-inductions/manage/contents/:id', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.removeContent);
+app.post('/api/safety-inductions/manage/contents', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.uploadContent);
+app.patch('/api/safety-inductions/manage/contents/:id/status', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.updateContentStatus);
+app.delete('/api/safety-inductions/manage/contents/:id', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.removeContent);
 app.get('/api/safety-inductions/visitor/:visitorId/history', authenticate, safetyInductionsRoutes.getVisitorHistory);
   app.post('/api/safety-inductions/complete', publicInductionLimiter, safetyInductionsRoutes.complete);
   app.post('/api/safety-inductions/complete-group', publicInductionLimiter, safetyInductionsRoutes.completeGroup);

@@ -37,11 +37,11 @@ describe('Layout navigation', () => {
     expect(screen.getByText('Keluar')).toBeInTheDocument();
   });
 
-  it('shows only reports for Monitoring in administration', () => {
+  it('shows reports and safety content for Monitoring in administration', () => {
     renderLayout('MONITORING');
     fireEvent.click(screen.getByText('Administrasi'));
     expect(screen.getByText('Laporan')).toBeInTheDocument();
-    expect(screen.queryByText('Konten Safety')).not.toBeInTheDocument();
+    expect(screen.getByText('Konten Safety')).toBeInTheDocument();
     expect(screen.queryByText('Pengguna')).not.toBeInTheDocument();
   });
 });

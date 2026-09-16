@@ -36,7 +36,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { to: '/visits/active', label: t('navigation.inside'), icon: 'inside', exact: true },
   ];
   const adminLinks = [
-    { to: '/safety-inductions/manage', label: t('navigation.safetyContent'), icon: 'building' as IconName, roles: ['ADMIN', 'SECURITY'] },
+    { to: '/safety-inductions/manage', label: t('navigation.safetyContent'), icon: 'building' as IconName, roles: ['ADMIN', 'SECURITY', 'MONITORING'] },
     { to: '/audit-log', label: t('navigation.auditLog'), icon: 'calendar' as IconName, roles: ['ADMIN'] },
     { to: '/reports', label: t('navigation.reports'), icon: 'calendar' as IconName, roles: ['ADMIN', 'SECURITY', 'MONITORING'] },
     { to: '/safety-inductions/config', label: t('navigation.configuration'), icon: 'building' as IconName, roles: ['ADMIN'] },
