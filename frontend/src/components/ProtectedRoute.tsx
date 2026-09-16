@@ -50,3 +50,21 @@ export function ReportsAccessRoute() {
 
   return <Outlet />;
 }
+
+export function CompanyEditRoute() {
+  const { isAuthenticated, loading, user } = useAuth();
+
+  if (loading) {
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-sm text-gray-500">Memeriksa akses...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role !== 'ADMIN' && user?.role !== 'SECURITY') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Outlet />;
+}

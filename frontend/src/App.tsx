@@ -14,7 +14,7 @@ import { NewVisitPage } from './pages/NewVisitPage';
 import { ActiveVisitsPage } from './pages/ActiveVisitsPage';
 import { SafetyInductionPage } from './pages/SafetyInductionPage';
 import { SafetyInductionManagementPage } from './pages/SafetyInductionManagementPage';
-import { ProtectedRoute, AdminOnlyRoute, ReportsAccessRoute } from './components/ProtectedRoute';
+import { ProtectedRoute, AdminOnlyRoute, ReportsAccessRoute, CompanyEditRoute } from './components/ProtectedRoute';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SafetyConfigurationPage } from './pages/SafetyConfigurationPage';
@@ -43,11 +43,13 @@ function App() {
            <Route element={<ReportsAccessRoute />}>
              <Route path="/reports" element={<ReportsPage />} />
            </Route>
+           <Route element={<CompanyEditRoute />}>
+             <Route path="/companies/:id/edit" element={<EditCompanyPage />} />
+           </Route>
            <Route element={<AdminOnlyRoute />}>
            <Route path="/audit-log" element={<AuditLogPage />} />
              <Route path="/safety-inductions/config" element={<SafetyConfigurationPage />} />
             <Route path="/users" element={<UserManagementPage />} />
-            <Route path="/companies/:id/edit" element={<EditCompanyPage />} />
             <Route path="/visitors/:id/edit" element={<EditVisitorPage />} />
           </Route>
         </Route>
