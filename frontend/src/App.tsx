@@ -14,7 +14,7 @@ import { NewVisitPage } from './pages/NewVisitPage';
 import { ActiveVisitsPage } from './pages/ActiveVisitsPage';
 import { SafetyInductionPage } from './pages/SafetyInductionPage';
 import { SafetyInductionManagementPage } from './pages/SafetyInductionManagementPage';
-import { ProtectedRoute, AdminOnlyRoute } from './components/ProtectedRoute';
+import { ProtectedRoute, AdminOnlyRoute, ReportsAccessRoute } from './components/ProtectedRoute';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SafetyConfigurationPage } from './pages/SafetyConfigurationPage';
@@ -38,12 +38,14 @@ function App() {
           <Route path="/visits" element={<VisitsPage />} />
           <Route path="/visits/new" element={<NewVisitPage />} />
           <Route path="/visits/active" element={<ActiveVisitsPage />} />
-          <Route path="/visits/:id" element={<VisitDetailPage />} />
-          <Route path="/safety-inductions/manage" element={<SafetyInductionManagementPage />} />
-          <Route element={<AdminOnlyRoute />}>
-          <Route path="/audit-log" element={<AuditLogPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/safety-inductions/config" element={<SafetyConfigurationPage />} />
+           <Route path="/visits/:id" element={<VisitDetailPage />} />
+           <Route path="/safety-inductions/manage" element={<SafetyInductionManagementPage />} />
+           <Route element={<ReportsAccessRoute />}>
+             <Route path="/reports" element={<ReportsPage />} />
+           </Route>
+           <Route element={<AdminOnlyRoute />}>
+           <Route path="/audit-log" element={<AuditLogPage />} />
+             <Route path="/safety-inductions/config" element={<SafetyConfigurationPage />} />
             <Route path="/users" element={<UserManagementPage />} />
             <Route path="/companies/:id/edit" element={<EditCompanyPage />} />
             <Route path="/visitors/:id/edit" element={<EditVisitorPage />} />

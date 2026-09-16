@@ -26,22 +26,22 @@ describe('Layout navigation', () => {
     expect(screen.getByText('Pengguna')).toBeInTheDocument();
   });
 
-  it('hides admin-only links from Security and exposes profile menu', () => {
+  it('shows reports and safety content for Security and exposes profile menu', () => {
     renderLayout('SECURITY');
     expect(screen.getByText('Administrasi')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Administrasi'));
     expect(screen.getByText('Konten Safety')).toBeInTheDocument();
-    expect(screen.queryByText('Laporan')).not.toBeInTheDocument();
+    expect(screen.getByText('Laporan')).toBeInTheDocument();
     expect(screen.queryByText('Pengguna')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTitle('Hidayah Muhammad Fadillah'));
     expect(screen.getByText('Keluar')).toBeInTheDocument();
   });
 
-  it('gives Monitoring the same operational administration access as Security', () => {
+  it('shows only reports for Monitoring in administration', () => {
     renderLayout('MONITORING');
     fireEvent.click(screen.getByText('Administrasi'));
-    expect(screen.getByText('Konten Safety')).toBeInTheDocument();
-    expect(screen.queryByText('Laporan')).not.toBeInTheDocument();
+    expect(screen.getByText('Laporan')).toBeInTheDocument();
+    expect(screen.queryByText('Konten Safety')).not.toBeInTheDocument();
     expect(screen.queryByText('Pengguna')).not.toBeInTheDocument();
   });
 });
