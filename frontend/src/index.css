@@ -54,6 +54,27 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 .app-shell { min-height: 100vh; }
+.app-sidebar-shell { display: flex; background: var(--canvas); }
+.app-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 40; display: flex; width: 252px; flex-direction: column; background: var(--bmc-navy); color: #fff; }
+.app-sidebar-brand { display: grid; gap: 8px; padding: 22px; border-bottom: 1px solid rgb(255 255 255 / 12%); }
+.app-sidebar-brand img { width: 148px; height: 38px; object-fit: contain; object-position: left center; filter: brightness(0) invert(1); }
+.app-sidebar-brand span, .app-sidebar-nav > p { color: rgb(255 255 255 / 48%); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.app-sidebar-nav { display: grid; gap: 3px; overflow-y: auto; padding: 22px 13px; }
+.app-sidebar-nav > p { margin: 0 10px 7px; }
+.app-sidebar-nav .app-sidebar-section { margin-top: 20px; }
+.app-sidebar-link { display: flex; min-height: 40px; align-items: center; gap: 10px; padding: 0 11px; border-radius: 7px; color: rgb(255 255 255 / 70%); font-size: 13px; font-weight: 650; text-decoration: none; }
+.app-sidebar-link:hover, .app-sidebar-link.is-active { background: rgb(255 255 255 / 12%); color: #fff; }
+.app-sidebar-link.is-active { box-shadow: inset 3px 0 0 var(--bmc-cyan); }
+.app-sidebar-footer { display: grid; gap: 8px; margin-top: auto; padding: 16px 13px; border-top: 1px solid rgb(255 255 255 / 12%); }
+.app-sidebar-account { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 0 8px 8px; }
+.app-sidebar-account > span:last-child { display: grid; min-width: 0; }
+.app-sidebar-account strong, .app-sidebar-account small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-sidebar-account strong { color: #fff; font-size: 12px; }
+.app-sidebar-account small { margin-top: 3px; color: rgb(255 255 255 / 55%); font-size: 10px; }
+.app-sidebar-footer > button { display: flex; min-height: 36px; align-items: center; gap: 9px; border: 0; border-radius: 7px; background: transparent; color: rgb(255 255 255 / 70%); padding: 0 8px; font-size: 12px; font-weight: 650; text-align: left; }
+.app-sidebar-footer > button:hover { background: rgb(255 255 255 / 10%); color: #fff; }
+.app-sidebar-content { width: calc(100% - 252px); min-height: 100vh; margin-left: 252px; }
+.app-mobile-header, .app-sidebar-backdrop { display: none; }
 .app-header {
   position: sticky;
   top: 0;
@@ -143,6 +164,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   width: min(1440px, calc(100% - 48px));
   margin: 0 auto;
   padding: 34px 0 56px;
+}
+@media (max-width: 900px) {
+  .app-sidebar { transform: translateX(-100%); transition: transform .2s ease; }
+  .app-sidebar.is-open { transform: translateX(0); }
+  .app-sidebar-backdrop { position: fixed; inset: 0; z-index: 30; display: block; border: 0; background: rgb(15 23 42 / 45%); }
+  .app-sidebar-content { width: 100%; margin-left: 0; }
+  .app-mobile-header { position: sticky; top: 0; z-index: 20; display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); background: #fff; padding: 0 16px; }
+  .app-mobile-header button { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: var(--ink); }
+  .app-mobile-header strong { overflow: hidden; color: var(--ink); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 }
 .connection-banner { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 9px 16px; background: #fff3d9; border-bottom: 1px solid #f2db9f; color: #7c4a03; font-size: 12px; font-weight: 650; }
 .connection-banner button { border: 1px solid #d9aa45; border-radius: 5px; padding: 4px 9px; background: #fff; color: #7c4a03; font-size: 11px; font-weight: 750; }

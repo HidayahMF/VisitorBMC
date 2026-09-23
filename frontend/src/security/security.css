@@ -1,0 +1,355 @@
+@import "tailwindcss";
+
+.bmc-security {
+  --signal: #0d9488;
+  --signal-soft: #ecfdf7;
+  --ink: #16233b;
+  --ink-soft: #e8f0f8;
+  --ink-faint: #e8f0f8;
+  --canvas: #f5f8fc;
+  --canvas-2: #e6f3ff;
+  --card: #ffffff;
+  --hair-light: #94a3b8;
+  --hair-mid: #64748b;
+  --whiteout: #ffffff;
+  --haze-2: #f1f5f9;
+  --amber: #d97706;
+  --amber-soft: #fffbeb;
+  --emerald: #0f766e;
+  --emerald-soft: #f0fdf4;
+  --button-primary-bg: #3b82f6;
+  --button-primary-hover: #2563eb;
+  --badge-success-bg: #dcfce7;
+  --badge-success-text: #166534;
+  --badge-warning-bg: #fef3c7;
+  --badge-warning-text: #92400e;
+  --badge-require-bg: #fee2e2;
+  --badge-require-text: #dc2626;
+  --badge-valid-bg: #dcfce7;
+  --badge-valid-text: #166534;
+  --badge-expired-bg: #fee2e2;
+  --badge-expired-text: #dc2626;
+  --status-in-bg: #dbeafe;
+  --status-in-text: #1e40af;
+  --status-out-bg: #f0fdf4;
+  --status-out-text: #166534;
+  --status-pending-bg: #fef3c7;
+  --status-pending-text: #92400e;
+}
+
+.bmc-security .text-ink { color: var(--ink); }
+.bmc-security .text-muted { color: var(--hair-mid); }
+.bmc-security .security-travel-time { background: var(--canvas-2); color: var(--signal); }
+.bmc-security .security-return-time { background: var(--emerald-soft); color: var(--emerald); }
+.bmc-security .security-permit-type { background: var(--amber-soft); color: var(--amber); }
+
+.bmc-security {
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+.bmc-security h1,
+.bmc-security h2,
+.bmc-security h3 {
+  color: var(--ink);
+  margin: 0;
+}
+
+.bmc-security .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.bmc-security .badge-valid {
+  background: var(--badge-valid-bg);
+  color: var(--badge-valid-text);
+}
+
+.bmc-security .badge-required {
+  background: var(--badge-require-bg);
+  color: var(--badge-require-text);
+}
+
+.bmc-security .badge-expired {
+  background: var(--badge-expired-bg);
+  color: var(--badge-expired-text);
+}
+
+.bmc-security .metric-card {
+  background: var(--card);
+  border: 1px solid var(--haze-2);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(23, 47, 84, 0.04);
+  padding: 20px;
+}
+
+.bmc-security .metric-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--canvas-2);
+  margin-bottom: 8px;
+}
+
+.bmc-security .metric-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  margin-bottom: 4px;
+}
+
+.bmc-security .metric-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.bmc-security .metric-unit {
+  font-size: 11px;
+  color: var(--hair-light);
+  margin-top: 2px;
+}
+
+.bmc-security .stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.bmc-security .stat-card {
+  background: var(--card);
+  border: 1px solid var(--haze-2);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+
+.bmc-security .stat-number {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.bmc-security .stat-label {
+  font-size: 11px;
+  color: var(--hair-mid);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-top: 4px;
+}
+
+.bmc-security .summary-section {
+  margin-bottom: 24px;
+}
+
+.bmc-security .summary-section h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.bmc-security .list-block {
+  background: var(--card);
+  border: 1px solid var(--haze-2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.bmc-security .list-block table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.bmc-security .list-block th,
+.bmc-security .list-block td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--haze-2);
+}
+
+.bmc-security .list-block th {
+  background: var(--canvas-2);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+
+.bmc-security .list-block tbody tr:hover {
+  background: var(--canvas-2);
+}
+
+.bmc-security .list-block tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.bmc-security .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.bmc-security .status-in {
+  background: var(--status-in-bg);
+  color: var(--status-in-text);
+}
+
+.bmc-security .status-out {
+  background: var(--status-out-bg);
+  color: var(--status-out-text);
+}
+
+.bmc-security .status-pending {
+  background: var(--status-pending-bg);
+  color: var(--status-pending-text);
+}
+
+.bmc-security .connection-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--amber-soft);
+  border-bottom: 1px solid var(--amber);
+  color: var(--amber);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 16px;
+}
+
+.bmc-security .connection-banner button {
+  background: var(--card);
+  border: 1px solid var(--amber);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.bmc-security .login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.bmc-security .login-visual {
+  display: none;
+}
+
+@media (min-width: 480px) {
+  .bmc-security .login-visual {
+    display: block;
+    flex: 1;
+    background: linear-gradient(135deg, var(--bmc-navy), #1e40af);
+    color: white;
+    padding: 40px;
+    border-radius: 12px;
+    margin-right: 24px;
+    min-width: 320px;
+  }
+  .bmc-security .login-panel {
+    flex: 1;
+  }
+}
+
+@media (max-width: 479px) {
+  .bmc-security .login-visual {
+    display: none;
+  }
+  .bmc-security .login-panel {
+    width: 100%;
+  }
+}
+
+.bmc-security .login-header {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.bmc-security .login-helper {
+  font-size: 13px;
+  color: var(--hair-light);
+  margin-top: 4px;
+}
+
+.bmc-security .form-field {
+  margin-bottom: 16px;
+}
+
+.bmc-security .form-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.bmc-security .form-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--haze-2);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--card);
+  color: var(--ink);
+}
+
+.bmc-security .form-field input:focus {
+  outline: none;
+  border-color: var(--bmc-navy);
+  box-shadow: 0 0 0 3px rgba(11, 131, 244, 0.2);
+}
+
+.bmc-security .login-cta {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: var(--bmc-navy);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.bmc-security .login-cta:hover {
+  background: var(--bmc-blue);
+}
+
+.bmc-security .login-cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bmc-security .demo-creds {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--haze-2);
+  text-align: center;
+  font-size: 11px;
+  color: var(--hair-light);
+}
+
+.bmc-security .demo-creds code {
+  background: var(--canvas-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}

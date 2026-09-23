@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import './security/security.css';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { CompaniesPage } from './pages/CompaniesPage';
@@ -20,12 +21,28 @@ import { ReportsPage } from './pages/ReportsPage';
 import { SafetyConfigurationPage } from './pages/SafetyConfigurationPage';
 import { UserManagementPage } from './pages/UserManagementPage';
 import { PublicVisitRegistrationPage } from './pages/PublicVisitRegistrationPage';
+import { SecurityGate, SecurityShell } from './security/shell';
+import { SecurityLoginPage } from './security/login';
+import { SecurityDashboardPage } from './security/pages/dashboard';
+import { SecurityTravelPage } from './security/pages/travel';
+import { SecurityIzinPage } from './security/pages/izin';
+import { SecurityKembaliPage } from './security/pages/kembali';
 
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/security/login" element={<SecurityLoginPage />} />
+        <Route path="/security" element={<SecurityGate />}>
+          <Route index element={<Navigate to="/security/dashboard" replace />} />
+          <Route element={<SecurityShell />}>
+            <Route path="dashboard" element={<SecurityDashboardPage />} />
+            <Route path="tugas-luar" element={<SecurityTravelPage />} />
+            <Route path="izin" element={<SecurityIzinPage />} />
+            <Route path="kembali" element={<SecurityKembaliPage />} />
+          </Route>
+        </Route>
          <Route path="/safety-induction/:token" element={<SafetyInductionPage />} />
          <Route path="/visitor/register" element={<PublicVisitRegistrationPage />} />
         <Route element={<ProtectedRoute />}>
