@@ -22,7 +22,6 @@ import { SafetyConfigurationPage } from './pages/SafetyConfigurationPage';
 import { UserManagementPage } from './pages/UserManagementPage';
 import { PublicVisitRegistrationPage } from './pages/PublicVisitRegistrationPage';
 import { SecurityGate, SecurityShell } from './security/shell';
-import { SecurityLoginPage } from './security/login';
 import { SecurityDashboardPage } from './security/pages/dashboard';
 import { SecurityTravelPage } from './security/pages/travel';
 import { SecurityIzinPage } from './security/pages/izin';
@@ -33,7 +32,6 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/security/login" element={<SecurityLoginPage />} />
         <Route path="/security" element={<SecurityGate />}>
           <Route index element={<Navigate to="/security/dashboard" replace />} />
           <Route element={<SecurityShell />}>

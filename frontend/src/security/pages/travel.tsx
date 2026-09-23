@@ -6,7 +6,9 @@ export function SecurityTravelPage() {
   const [items, setItems] = useState<Travel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [confirmId, setConfirmId] = useState<{ id: number | string; nip: string; nama: string } | null>(null);
+  const [returnTime, setReturnTime] = useState(() => new Date().toTimeString().slice(0, 5));
   const [submitting, setSubmitting] = useState(false);
   const [mode, setMode] = useState<'live' | 'report'>('live');
 
@@ -51,11 +53,19 @@ export function SecurityTravelPage() {
 
   async function handleReturn() {
     if (!confirmId) return;
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(returnTime)) {
+      setError('Jam kembali harus berformat HH:MM.');
+      return;
+    }
     setSubmitting(true);
+    setError('');
+    setSuccess('');
     try {
-      await returnTravel(confirmId.id, confirmId.nip);
+      await returnTravel(confirmId.id, confirmId.nip, returnTime);
+      setSuccess(`${confirmId.nama} berhasil dicatat sudah kembali.`);
       setConfirmId(null);
       await load();
+      window.setTimeout(() => setSuccess(''), 4000);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Gagal mencatat kembali');
     } finally {
@@ -90,6 +100,7 @@ export function SecurityTravelPage() {
       </div>
 
       {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{error}</div>}
+      {success && <div className="bg-green-50 text-green-700 border border-green-200 p-3 rounded mb-4 text-sm" role="status">{success}</div>}
 
       {mode === 'live' ? (
         loading ? (
@@ -128,7 +139,7 @@ export function SecurityTravelPage() {
                     <td className="text-right">
                       <button
                         type="button"
-                        onClick={() => setConfirmId({ id: item.id, nip: item.nip, nama: item.nama })}
+                        onClick={() => { setReturnTime(new Date().toTimeString().slice(0, 5)); setConfirmId({ id: item.id, nip: item.nip, nama: item.nama }); }}
                         className="primary-button !min-h-[32px] !py-1 !text-xs !bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700"
                       >
                         Catat Kembali
@@ -214,6 +225,10 @@ export function SecurityTravelPage() {
             <p className="text-sm text-gray-600">
               Konfirmasi kepulangan untuk <strong>{confirmId.nama}</strong> ({confirmId.nip})?
             </p>
+            <label className="block text-sm font-semibold text-gray-700" htmlFor="return-time">
+              Jam kembali
+              <input id="return-time" type="time" value={returnTime} onChange={(event) => setReturnTime(event.target.value)} className="mt-1 block w-full" disabled={submitting} required />
+            </label>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"

@@ -70,6 +70,7 @@ export async function login(
 
     const token = generateToken({ userId: user.Id, role: user.Role });
 
+
     res.cookie('jwt', token, {
       httpOnly: true,
       secure: env.COOKIE_SECURE,

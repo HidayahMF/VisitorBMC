@@ -1,21 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Outlet, useSearchParams } from 'react-router-dom';
-import { fetchOverview, getToken } from './api';
-import { isMock } from './mock';
+import { Navigate, Outlet } from 'react-router-dom';
+import { fetchOverview } from './api';
 import './security.css';
 import { Layout } from '../components/Layout';
-
-function useMockMode(): boolean {
-  const [searchParams] = useSearchParams();
-  return isMock() || searchParams.has('mock');
-}
+import { useAuth } from '../context/AuthContext';
 
 export function SecurityGate() {
-  const mockMode = useMockMode();
-  if (mockMode || getToken()) {
+  const { isAuthenticated, loading, user } = useAuth();
+  if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-sm text-gray-500">Memeriksa akses...</div>;
+  if (isAuthenticated && ['ADMIN', 'SECURITY', 'MONITORING'].includes(user?.role || '')) {
     return <Outlet />;
   }
-  return <Navigate to="/security/login" replace />;
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  return <Navigate to="/login" replace />;
 }
 
 export function SecurityShell() {

@@ -17,6 +17,7 @@ import * as hrisRoutes from './routes/hris.routes';
 import * as auditRoutes from './routes/audit.routes';
 import * as reportsRoutes from './routes/reports.routes';
 import * as usersRoutes from './routes/users.routes';
+import * as securityRoutes from './routes/security.routes';
 import rateLimit from 'express-rate-limit';
 
 const app: Express = express();
@@ -38,6 +39,10 @@ app.get('/api/health', healthCheck);
 app.post('/api/auth/login', login);
 app.post('/api/auth/logout', logout);
 app.get('/api/auth/me', authenticate, me);
+
+app.get('/api/security/overview', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), securityRoutes.overview);
+app.post('/api/travel/return', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), securityRoutes.returnTravel);
+app.get('/api/security/report', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), securityRoutes.report);
 
 app.get('/api/companies', authenticate, companiesRoutes.list);
 app.get('/api/companies/search', authenticate, companiesRoutes.search);

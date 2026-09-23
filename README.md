@@ -2321,3 +2321,5 @@ Internal use only — PT BMC.
 > **UI note:** Visitor badge preview/printing uses a fixed CR80 identity-card layout (`85.6mm × 53.98mm`), the existing BMC logo asset, and bilingual labels from the frontend language preference. Browser print-preview verification remains a manual deployment step.
 
 > **Dashboard note:** Security dashboard KPIs count visitor participation rows consistently: Visitors Today, Currently Inside, Checked Out Today, and Induction Required are people/visitor counts, not visit-record counts. Recent Activity is loaded from today's existing visit list.
+
+> **Security auth note:** Security menu memakai autentikasi global VisitorBMC melalui cookie `jwt`. Backend VisitorBMC mem-proxy `/api/security/overview`, `/api/travel/return`, dan `/api/security/report` ke Security API menggunakan `SECURITY_API_URL` dan `SECURITY_API_TOKEN`; isi token service di environment deployment, bukan repository.
