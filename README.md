@@ -2322,4 +2322,6 @@ Internal use only — PT BMC.
 
 > **Dashboard note:** Security dashboard KPIs count visitor participation rows consistently: Visitors Today, Currently Inside, Checked Out Today, and Induction Required are people/visitor counts, not visit-record counts. Recent Activity is loaded from today's existing visit list.
 
-> **Security auth note:** Security menu memakai autentikasi global VisitorBMC melalui cookie `jwt`. Backend VisitorBMC mem-proxy `/api/security/overview`, `/api/travel/return`, dan `/api/security/report` ke Security API menggunakan `SECURITY_API_URL` dan `SECURITY_API_TOKEN`; isi token service di environment deployment, bukan repository.
+> **Security auth note:** Security menu memakai autentikasi global VisitorBMC melalui cookie `jwt`. Backend VisitorBMC menyediakan endpoint Security lokal dan membaca tabel ERP `hris_Travel`, `hris_Permit_Days`, `hris_Approval`, `hris_Permit_SubGroup`, serta `hris_Employee` melalui koneksi SQL Server yang sama.
+
+> **Security travel checkpoint note:** Migration `backend/database/015_security_travel_checkpoints.sql` wajib dijalankan. Approval HRIS (`hris_Travel.Status = 'APPROVED'`) menghasilkan status `AKAN_TUGAS_LUAR`; Security harus mencatat keberangkatan melalui `/api/travel/depart` sebelum visitor menjadi `SEDANG_TUGAS_LUAR`. Hanya status tersebut yang dapat dicatat kembali.

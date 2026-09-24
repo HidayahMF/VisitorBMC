@@ -7,6 +7,8 @@ export interface Travel {
   jamKeluar: string | null;
   tanggal?: string;
   jamKembali?: string | null;
+  status?: 'AKAN_TUGAS_LUAR' | 'SEDANG_TUGAS_LUAR';
+  departureTime?: string | null;
 }
 
 export interface Izin {
@@ -29,6 +31,7 @@ export interface Kembali {
 
 export interface OverviewCounts {
   travel: number;
+  akanTugasLuar?: number;
   izin: number;
   kembali: number;
 }
@@ -48,6 +51,7 @@ export interface ReportRow {
   nama: string;
   tanggal?: string;
   jamKeluar?: string | null;
+  departureTime?: string | null;
   jamKembali?: string | null;
   tujuan?: string;
   keperluan?: string;

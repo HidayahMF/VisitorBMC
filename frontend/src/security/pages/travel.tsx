@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchOverview, returnTravel, fetchReport } from '../api';
+import { departTravel, fetchOverview, returnTravel, fetchReport } from '../api';
 import { type Travel, type ReportRow } from '../types';
 
 export function SecurityTravelPage() {
@@ -9,6 +9,8 @@ export function SecurityTravelPage() {
   const [success, setSuccess] = useState('');
   const [confirmId, setConfirmId] = useState<{ id: number | string; nip: string; nama: string } | null>(null);
   const [returnTime, setReturnTime] = useState(() => new Date().toTimeString().slice(0, 5));
+  const [departureId, setDepartureId] = useState<Travel | null>(null);
+  const [departureTime, setDepartureTime] = useState(() => new Date().toTimeString().slice(0, 5));
   const [submitting, setSubmitting] = useState(false);
   const [mode, setMode] = useState<'live' | 'report'>('live');
 
@@ -73,6 +75,20 @@ export function SecurityTravelPage() {
     }
   }
 
+  async function handleDeparture() {
+    if (!departureId) return;
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(departureTime)) { setError('Jam keberangkatan harus berformat HH:MM.'); return; }
+    setSubmitting(true);
+    try {
+      await departTravel(departureId.id, departureId.nip, departureTime);
+      setSuccess(`${departureId.nama} berhasil dicatat berangkat.`);
+      setDepartureId(null);
+      await load();
+      window.setTimeout(() => setSuccess(''), 4000);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Gagal mencatat keberangkatan'); }
+    finally { setSubmitting(false); }
+  }
+
   return (
     <div className="companies-page space-y-6">
       <div className="page-header-compact">
@@ -114,15 +130,25 @@ export function SecurityTravelPage() {
             <table className="companies-table">
               <thead>
                 <tr>
-                  <th style={{ width: '35%' }}>Karyawan</th>
-                  <th style={{ width: '35%' }}>Tujuan & Keperluan</th>
-                  <th style={{ width: '15%' }}>Jam Keluar</th>
-                  <th className="text-right" style={{ width: '15%' }}>Aksi</th>
+                  <th rowSpan={2} style={{ width: '20%' }}>Status</th>
+                  <th rowSpan={2} style={{ width: '22%' }}>Karyawan</th>
+                  <th rowSpan={2} style={{ width: '25%' }}>Tujuan & Keperluan</th>
+                  <th colSpan={2} className="text-center">Jam Berangkat</th>
+                  <th rowSpan={2} className="text-right" style={{ width: '15%' }}>Aksi</th>
+                </tr>
+                <tr>
+                  <th style={{ width: '9%' }}>Jam Surat</th>
+                  <th style={{ width: '9%' }}>Jam Aktual</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id}>
+                    <td>
+                      <span className={`status-badge ${item.status === 'SEDANG_TUGAS_LUAR' ? 'security-travel-time' : 'security-permit-type'}`}>
+                        {item.status === 'SEDANG_TUGAS_LUAR' ? 'Sedang Tugas Luar' : 'Akan Tugas Luar'}
+                      </span>
+                    </td>
                     <td>
                       <strong className="company-name">{item.nama}</strong>
                       <span className="text-xs text-gray-500 font-mono">NIP: {item.nip}</span>
@@ -132,18 +158,19 @@ export function SecurityTravelPage() {
                       <div className="text-xs text-gray-500">{item.keperluan}</div>
                     </td>
                     <td>
-                      <span className="status-badge security-travel-time">
-                        {item.jamKeluar || '-'}
-                      </span>
+                      <span className="status-badge security-scheduled-time">{item.jamKeluar || '-'}</span>
+                    </td>
+                    <td>
+                      <span className="status-badge security-departure-time">{item.departureTime || '-'}</span>
                     </td>
                     <td className="text-right">
-                      <button
+                      {item.status === 'AKAN_TUGAS_LUAR' ? <button
                         type="button"
-                        onClick={() => { setReturnTime(new Date().toTimeString().slice(0, 5)); setConfirmId({ id: item.id, nip: item.nip, nama: item.nama }); }}
-                        className="primary-button !min-h-[32px] !py-1 !text-xs !bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700"
+                        onClick={() => { setDepartureTime(new Date().toTimeString().slice(0, 5)); setDepartureId(item); }}
+                        className="primary-button security-depart-button !min-h-[32px] !py-1 !text-xs"
                       >
-                        Catat Kembali
-                      </button>
+                        Catat Berangkat
+                      </button> : <button type="button" onClick={() => { setReturnTime(new Date().toTimeString().slice(0, 5)); setConfirmId({ id: item.id, nip: item.nip, nama: item.nama }); }} className="primary-button !min-h-[32px] !py-1 !text-xs !bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700">Catat Kembali</button>}
                     </td>
                   </tr>
                 ))}
@@ -191,11 +218,15 @@ export function SecurityTravelPage() {
               <table className="companies-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '15%' }}>Tanggal</th>
-                    <th style={{ width: '30%' }}>Karyawan</th>
-                    <th style={{ width: '25%' }}>Tujuan</th>
-                    <th style={{ width: '15%' }}>Keluar</th>
-                    <th style={{ width: '15%' }}>Kembali</th>
+                    <th rowSpan={2} style={{ width: '12%' }}>Tanggal</th>
+                    <th rowSpan={2} style={{ width: '25%' }}>Karyawan</th>
+                    <th rowSpan={2} style={{ width: '23%' }}>Tujuan</th>
+                    <th colSpan={2} className="text-center">Jam Berangkat</th>
+                    <th rowSpan={2} style={{ width: '15%' }}>Jam Kembali</th>
+                  </tr>
+                  <tr>
+                    <th style={{ width: '12.5%' }}>Jam Surat</th>
+                    <th style={{ width: '12.5%' }}>Jam Aktual</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -208,6 +239,7 @@ export function SecurityTravelPage() {
                       </td>
                       <td>{row.tujuan || '-'}</td>
                       <td className="font-mono text-xs">{row.jamKeluar || '-'}</td>
+                      <td className="font-mono text-xs">{row.departureTime || '-'}</td>
                       <td className="font-mono text-xs">{row.jamKembali || '-'}</td>
                     </tr>
                   ))}
@@ -250,6 +282,7 @@ export function SecurityTravelPage() {
           </div>
         </div>
       )}
+      {departureId && <div className="content-preview-backdrop"><div className="bg-white rounded p-6 max-w-sm w-full space-y-4 shadow-xl border"><h3 className="font-bold text-base text-ink">Konfirmasi Keberangkatan</h3><p className="text-sm text-gray-600">Catat <strong>{departureId.nama}</strong> sebagai sedang tugas luar?</p><label className="block text-sm font-semibold text-gray-700" htmlFor="departure-time">Jam berangkat<input id="departure-time" type="time" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} className="mt-1 block w-full" disabled={submitting} /></label><div className="flex justify-end gap-2"><button type="button" className="secondary-button" onClick={() => setDepartureId(null)} disabled={submitting}>Batal</button><button type="button" className="primary-button !bg-blue-600 !border-blue-600" onClick={handleDeparture} disabled={submitting}>{submitting ? 'Menyimpan...' : 'Ya, Catat Berangkat'}</button></div></div></div>}
     </div>
   );
 }

@@ -62,6 +62,11 @@ export async function returnTravel(id: number | string, nip: string, returnTime:
   await request<undefined>('/api/travel/return', { method: 'POST', body: { id, travelId: id, nip, returnTime } });
 }
 
+export async function departTravel(id: number | string, nip: string, departureTime: string): Promise<void> {
+  if (isMock()) return;
+  await request<undefined>('/api/travel/depart', { method: 'POST', body: { id, nip, departureTime } });
+}
+
 export async function fetchReport(type: ReportType, start: string, end: string): Promise<ReportResponse> {
   if (isMock()) return { rows: mockReportRows(type, start, end) };
   const query = new URLSearchParams({ type, start, end }).toString();

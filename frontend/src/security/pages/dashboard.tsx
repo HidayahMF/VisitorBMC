@@ -58,9 +58,9 @@ export function SecurityDashboardPage() {
       <div className="metric-grid">
         <article className="metric-card metric-blue">
           <div className="metric-icon"><Icon name="calendar" size={18} /></div>
-          <p className="metric-label">Tugas Luar Aktif</p>
+          <p className="metric-label">Sedang Tugas Luar</p>
           <p className="metric-value">{counts.travel}</p>
-          <p className="metric-unit">Orang sedang bertugas</p>
+          <p className="metric-unit">Sudah dicatat Security</p>
         </article>
 
         <article className="metric-card metric-amber">
@@ -82,8 +82,8 @@ export function SecurityDashboardPage() {
         <section className="dashboard-operation-section">
           <div className="dashboard-section-head">
             <div>
-              <h2>Sedang Tugas Luar</h2>
-              <span>Daftar karyawan dinas ke luar area</span>
+            <h2>Status Tugas Luar</h2>
+              <span>Approval HRIS dan checkpoint Security</span>
             </div>
           </div>
           {overview?.travel.length === 0 ? (
@@ -97,8 +97,8 @@ export function SecurityDashboardPage() {
                     <span>NIP: {item.nip} — {item.tujuan}</span>
                     <span className="text-xs text-gray-500 mt-0.5">{item.keperluan}</span>
                   </div>
-                  <span className="activity-status security-travel-time">
-                    Keluar: {item.jamKeluar || '-'}
+                    <span className={item.status === 'SEDANG_TUGAS_LUAR' ? 'activity-status security-travel-time' : 'activity-status security-permit-type'}>
+                     {item.status === 'SEDANG_TUGAS_LUAR' ? `Aktual: ${item.departureTime || '-'}` : `Surat: ${item.jamKeluar || '-'}`}
                   </span>
                 </div>
               ))}
