@@ -21,6 +21,8 @@ import * as securityRoutes from './routes/security.routes';
 import rateLimit from 'express-rate-limit';
 
 const app: Express = express();
+const publicLookupLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false, message: { message: 'Terlalu banyak permintaan pencarian. Coba lagi nanti.' } });
+const publicCompanyCreateLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false, message: { message: 'Terlalu banyak percobaan membuat perusahaan. Coba lagi nanti.' } });
 const publicInductionLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false, message: { message: 'Terlalu banyak permintaan induction. Coba lagi nanti.' } });
 
 app.use(helmet());
@@ -47,8 +49,8 @@ app.get('/api/security/report', authenticate, authorize('ADMIN', 'SECURITY', 'MO
 
 app.get('/api/companies', authenticate, companiesRoutes.list);
 app.get('/api/companies/search', authenticate, companiesRoutes.search);
-app.get('/api/companies/public', publicInductionLimiter, companiesRoutes.list);
-app.post('/api/companies/public', publicInductionLimiter, companiesRoutes.create);
+app.get('/api/companies/public', publicLookupLimiter, companiesRoutes.list);
+app.post('/api/companies/public', publicCompanyCreateLimiter, companiesRoutes.create);
 app.get('/api/companies/:id', authenticate, companiesRoutes.getById);
 app.post('/api/companies', authenticate, companiesRoutes.create);
 app.put('/api/companies/:id', authenticate, authorize('ADMIN', 'SECURITY'), companiesRoutes.update);
@@ -57,7 +59,7 @@ app.delete('/api/companies/:id', authenticate, authorize('ADMIN', 'SECURITY'), c
 
 app.get('/api/visitors', authenticate, visitorsRoutes.list);
 app.get('/api/visitors/search', authenticate, visitorsRoutes.search);
-app.get('/api/visitors/public/search', publicInductionLimiter, visitorsRoutes.publicSearch);
+app.get('/api/visitors/public/search', publicLookupLimiter, visitorsRoutes.publicSearch);
 app.get('/api/visitors/:id/history', authenticate, visitorsRoutes.history);
 app.get('/api/visitors/:id', authenticate, visitorsRoutes.getById);
 app.post('/api/visitors', authenticate, visitorsRoutes.create);
@@ -79,8 +81,8 @@ app.delete('/api/visits/:id', authenticate, authorize('ADMIN'), developmentOnly,
 app.get('/api/safety-inductions/active/contents', safetyInductionsRoutes.getActiveContents);
 app.post('/api/safety-inductions/access/:visitId', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.issueToken);
   app.get('/api/safety-inductions/token/:token/workflow', publicInductionLimiter, safetyInductionsRoutes.tokenWorkflow);
-  app.get('/api/hris/employees/public', publicInductionLimiter, hrisRoutes.search);
-  app.get('/api/hris/employees/public-list', publicInductionLimiter, hrisRoutes.publicList);
+   app.get('/api/hris/employees/public', publicLookupLimiter, hrisRoutes.search);
+   app.get('/api/hris/employees/public-list', publicLookupLimiter, hrisRoutes.publicList);
   app.post('/api/safety-inductions/public/register', publicInductionLimiter, safetyInductionsRoutes.publicRegister);
 app.get('/api/safety-inductions/manage/contents', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.managedContents);
 app.get('/api/safety-inductions/manage/config', authenticate, authorize('ADMIN'), safetyInductionsRoutes.config);
