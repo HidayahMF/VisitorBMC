@@ -3,14 +3,17 @@ import { Link } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
 import { Layout } from '../components/Layout';
 import { Icon, type IconName } from '../components/Icon';
-import { getDashboardStats } from '../api/visits.api';
-import { listVisits } from '../api/visits.api';
+import { deleteVisit, getDashboardStats, listVisits } from '../api/visits.api';
 import { type DashboardStats } from '../types/dashboard';
 import { ErrorState } from '../components/AsyncState';
 import { type Visit } from '../types/visit';
 import { userFacingError } from '../api/client';
+import { useAuth } from '../context/AuthContext';
+import { DevDeleteButton } from '../components/DevFillButton';
+import { confirmAction } from '../components/ConfirmationHost';
 
 export function DashboardPage() {
+  const { user } = useAuth();
   const { language, t, formatDate } = useLanguage();
   const metrics: { key: keyof DashboardStats; label: string; icon: IconName; tone: string }[] = [
     { key: 'visitorsToday', label: t('dashboard.metrics.visitorsToday'), icon: 'users', tone: 'metric-blue' },
@@ -45,6 +48,12 @@ export function DashboardPage() {
       setActivity(visits.data);
     } catch (cause) { setError(userFacingError(cause, language)); setActivityError(userFacingError(cause, language)); }
     finally { setLoading(false); }
+  }
+
+  async function handleDelete(visit: Visit) {
+    if (!await confirmAction(`${t('common.delete')} ${visit.VisitCode}?`, { confirmLabel: t('common.delete'), cancelLabel: t('common.cancel') })) return;
+    try { await deleteVisit(visit.Id); await load(); }
+    catch (cause) { setError(userFacingError(cause, language)); }
   }
 
   return (
@@ -93,7 +102,7 @@ export function DashboardPage() {
          <section className="dashboard-operation-section attention-section"><div className="dashboard-section-head"><div><h2>{t('dashboard.attention')}</h2></div></div>{stats && stats.inductionRequiredToday > 0 ? <Link to="/visits" className="attention-item"><span className="attention-marker" aria-hidden="true" /><span><strong>{t('dashboard.metrics.inductionRequiredToday')}</strong><small>{stats.inductionRequiredToday} {t('dashboard.visitors')}</small></span><span className="dashboard-section-link">{t('dashboard.view')}</span></Link> : <div className="dashboard-calm-state">{t('dashboard.noAttention')}</div>}</section>
          <section className="dashboard-operation-section activity-section">
           <div className="dashboard-section-head"><div><h2>{t('dashboard.activity')}</h2><span>{t('dashboard.activityDescription')}</span></div><Link to="/visits" className="dashboard-section-link">{t('dashboard.view')}</Link></div>
-          {activityError ? <ErrorState message={activityError} onRetry={load} /> : activity.length === 0 ? <div className="dashboard-calm-state">{t('dashboard.noActivity')}</div> : <div className="activity-list">{activity.map(visit => <Link key={visit.Id} to={`/visits/${visit.Id}`} className="activity-row"><div className="activity-main"><strong>{visit.VisitCode}</strong><span>{visit.CompanyName}</span></div><div className="activity-meta"><span>{visit.VisitorCount ?? '-'} {t('dashboard.visitors')}</span><span>{t('dashboard.host')}: {visit.HostName}</span></div><span className="activity-status">{visit.Status === 'OUT' ? t('status.out') : visit.Status === 'IN' ? t('status.inside') : visit.Status === 'READY_FOR_CHECKIN' ? t('status.ready') : t('status.required')}</span></Link>)}</div>}
+           {activityError ? <ErrorState message={activityError} onRetry={load} /> : activity.length === 0 ? <div className="dashboard-calm-state">{t('dashboard.noActivity')}</div> : <div className="activity-list">{activity.map(visit => <div key={visit.Id} className="activity-row"><Link to={`/visits/${visit.Id}`} className="activity-main"><strong>{visit.VisitCode}</strong><span>{visit.CompanyName}</span></Link><div className="activity-meta"><span>{visit.VisitorCount ?? '-'} {t('dashboard.visitors')}</span><span>{t('dashboard.host')}: {visit.HostName}</span></div><span className="activity-status">{visit.Status === 'OUT' ? t('status.out') : visit.Status === 'IN' ? t('status.inside') : visit.Status === 'READY_FOR_CHECKIN' ? t('status.ready') : t('status.required')}</span>{user?.role === 'ADMIN' && <DevDeleteButton onClick={() => handleDelete(visit)} />}</div>)}</div>}
         </section>
        </div>
     </Layout>

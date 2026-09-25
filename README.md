@@ -1203,6 +1203,8 @@ Semua timestamp penting **wajib** di-generate oleh backend:
 
 ## 19. Deployment Architecture
 
+Untuk deployment aktual melalui Portainer, ikuti panduan lengkap di [`docs/portainer-deployment.md`](docs/portainer-deployment.md). File stack yang digunakan adalah [`docker-compose.portainer.yml`](docker-compose.portainer.yml), dan template environment tersedia di [`portainer.env.example`](portainer.env.example).
+
 ### 19.1 Current: Internal Network Only
 
 ```

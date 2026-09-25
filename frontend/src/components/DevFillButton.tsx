@@ -25,7 +25,6 @@ export function DevFillButton({ onClick, label = 'Isi data contoh' }: DevFillBut
 
 export function DevDeleteButton({ onClick, label = 'Delete' }: DevDeleteButtonProps) {
   const { t } = useLanguage();
-  if (!import.meta.env.DEV) return null;
 
   return (
     <button

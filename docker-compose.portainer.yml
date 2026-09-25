@@ -1,3 +1,5 @@
+name: visitorbmc
+
 services:
   backend:
     build:
@@ -29,12 +31,16 @@ services:
       HRIS_SEARCH_MIN_CHARS: ${HRIS_SEARCH_MIN_CHARS:-2}
     volumes:
       - visitorbmc_uploads:/app/uploads
+    expose:
+      - "3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 20s
+    networks:
+      - visitorbmc
 
   frontend:
     build:
@@ -51,6 +57,12 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    networks:
+      - visitorbmc
 
 volumes:
   visitorbmc_uploads:
+
+networks:
+  visitorbmc:
+    driver: bridge

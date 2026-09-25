@@ -8,7 +8,6 @@ import { healthCheck } from './routes/health.routes';
 import { login, logout, me } from './routes/auth.routes';
 import { authenticate } from './middleware/authenticate';
 import { authorize } from './middleware/authorize';
-import { developmentOnly } from './middleware/developmentOnly';
 import * as companiesRoutes from './routes/companies.routes';
 import * as visitorsRoutes from './routes/visitors.routes';
 import * as visitsRoutes from './routes/visits.routes';
@@ -55,7 +54,7 @@ app.get('/api/companies/:id', authenticate, companiesRoutes.getById);
 app.post('/api/companies', authenticate, companiesRoutes.create);
 app.put('/api/companies/:id', authenticate, authorize('ADMIN', 'SECURITY'), companiesRoutes.update);
 app.patch('/api/companies/:id/status', authenticate, authorize('ADMIN', 'SECURITY'), companiesRoutes.updateStatus);
-app.delete('/api/companies/:id', authenticate, authorize('ADMIN', 'SECURITY'), companiesRoutes.remove);
+app.delete('/api/companies/:id', authenticate, authorize('ADMIN'), companiesRoutes.remove);
 
 app.get('/api/visitors', authenticate, visitorsRoutes.list);
 app.get('/api/visitors/search', authenticate, visitorsRoutes.search);
@@ -65,7 +64,7 @@ app.get('/api/visitors/:id', authenticate, visitorsRoutes.getById);
 app.post('/api/visitors', authenticate, visitorsRoutes.create);
 app.put('/api/visitors/:id', authenticate, authorize('ADMIN'), visitorsRoutes.update);
 app.patch('/api/visitors/:id/status', authenticate, authorize('ADMIN'), visitorsRoutes.updateStatus);
-app.delete('/api/visitors/:id', authenticate, authorize('ADMIN'), developmentOnly, visitorsRoutes.remove);
+app.delete('/api/visitors/:id', authenticate, authorize('ADMIN'), visitorsRoutes.remove);
 
 app.get('/api/visits', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), visitsRoutes.list);
 app.get('/api/visits/active', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), visitsRoutes.active);
@@ -76,7 +75,7 @@ app.post('/api/visits/safety-check', authenticate, authorize('ADMIN', 'SECURITY'
 app.post('/api/visits/check-duplicate', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), visitsRoutes.checkDuplicate);
 app.put('/api/visits/:id/checkin', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), visitsRoutes.checkIn);
 app.put('/api/visits/:id/checkout', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), visitsRoutes.checkOut);
-app.delete('/api/visits/:id', authenticate, authorize('ADMIN'), developmentOnly, visitsRoutes.remove);
+app.delete('/api/visits/:id', authenticate, authorize('ADMIN'), visitsRoutes.remove);
 
 app.get('/api/safety-inductions/active/contents', safetyInductionsRoutes.getActiveContents);
 app.post('/api/safety-inductions/access/:visitId', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.issueToken);
@@ -89,7 +88,7 @@ app.get('/api/safety-inductions/manage/config', authenticate, authorize('ADMIN')
 app.patch('/api/safety-inductions/manage/config', authenticate, authorize('ADMIN'), safetyInductionsRoutes.updateConfig);
 app.post('/api/safety-inductions/manage/contents', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.uploadContent);
 app.patch('/api/safety-inductions/manage/contents/:id/status', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.updateContentStatus);
-app.delete('/api/safety-inductions/manage/contents/:id', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), safetyInductionsRoutes.removeContent);
+app.delete('/api/safety-inductions/manage/contents/:id', authenticate, authorize('ADMIN'), safetyInductionsRoutes.removeContent);
 app.get('/api/safety-inductions/visitor/:visitorId/history', authenticate, safetyInductionsRoutes.getVisitorHistory);
   app.post('/api/safety-inductions/complete', publicInductionLimiter, safetyInductionsRoutes.complete);
   app.post('/api/safety-inductions/complete-group', publicInductionLimiter, safetyInductionsRoutes.completeGroup);

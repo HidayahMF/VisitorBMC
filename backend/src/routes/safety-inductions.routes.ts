@@ -169,12 +169,15 @@ export const uploadContent = [upload.single('file'), async (
       : extension === '.jpg' || extension === '.jpeg' || extension === '.png' || extension === '.gif'
         ? 'IMAGE'
         : 'VIDEO';
+    if (req.body.purposeCategory !== 'MEETING' && req.body.purposeCategory !== 'TECHNICAL_SUPPORT') {
+      throw new AppError('A valid content category is required', 400);
+    }
     const content = await createInductionContent({
       file: req.file,
       contentType,
       title: typeof req.body.title === 'string' ? req.body.title : undefined,
        description: typeof req.body.description === 'string' ? req.body.description : undefined,
-       purposeCategory: req.body.purposeCategory === 'MEETING' ? 'MEETING' : 'TECHNICAL_SUPPORT',
+        purposeCategory: req.body.purposeCategory,
     });
     res.status(201).json(content);
   } catch (error) {

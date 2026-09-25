@@ -42,6 +42,7 @@ export async function uploadInductionContent(data: {
   form.append('file', data.file);
   form.append('title', data.title);
   form.append('description', data.description);
+  form.append('purposeCategory', data.purposeCategory);
   return apiClient<InductionContent>('/safety-inductions/manage/contents', {
     method: 'POST',
     body: form,
