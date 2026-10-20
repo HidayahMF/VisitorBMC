@@ -113,6 +113,28 @@ export async function completeGroupInductionByToken(
   return { workflow: await getPublicInductionWorkflow(visitId) };
 }
 
+export async function completeInductionForStaff(
+  visitId: number,
+  createdBy: number,
+  ipAddress?: string,
+): Promise<{ workflow: PublicInductionWorkflow }> {
+  const workflow = await getPublicInductionWorkflow(visitId);
+  if (!['PENDING_INDUCTION', 'READY_FOR_CHECKIN'].includes(workflow.status)) {
+    throw new AppError('Visit is not eligible for induction completion', 400);
+  }
+
+  for (const visitor of workflow.visitors.filter((item) => item.needsInduction)) {
+    await completeInduction({
+      visitorId: visitor.visitorId,
+      visitId,
+      acknowledged: true,
+      ipAddress,
+    }, createdBy);
+  }
+
+  return { workflow: await getPublicInductionWorkflow(visitId) };
+}
+
 export async function getPublicInductionWorkflow(visitId: number): Promise<PublicInductionWorkflow> {
   const pool = await getDbConnection();
   const visitResult = await pool.request().input('visitId', sql.Int, visitId).query(`

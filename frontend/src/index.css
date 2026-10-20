@@ -536,6 +536,54 @@ main input[aria-invalid="true"], main select[aria-invalid="true"], main textarea
 .public-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid #e7edf5; padding-top: 18px; }.public-form-footer p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }.public-form-footer strong { color: var(--success); }
 .login-visitor-route { display: grid; gap: 14px; margin: 0 0 22px; border: 1px solid #b9d0f2; border-left: 4px solid var(--bmc-blue); border-radius: var(--radius-md); background: #f1f6ff; padding: 18px 18px 16px; }.login-visitor-route div { display: grid; gap: 5px; }.login-visitor-route strong { color: var(--bmc-navy); font-size: 18px; line-height: 1.2; }.login-visitor-route span { color: #4f607a; font-size: 14px; line-height: 1.5; }.login-visitor-route button { display: inline-flex; width: fit-content; min-height: 42px; align-items: center; justify-content: center; border: 1px solid var(--bmc-blue); border-radius: var(--radius-sm); background: var(--bmc-blue); color: #fff; padding: 0 14px; font-size: 13px; font-weight: 750; text-decoration: none; }.login-visitor-route button:hover { border-color: var(--bmc-navy); background: var(--bmc-navy); }
 @media (max-width: 600px) { .public-visit-shell { padding: 24px 14px 40px; }.public-visit-header { align-items: flex-start; }.public-visit-header-actions { width: 100%; align-items: stretch; flex-direction: column; }.public-back-button { width: 100%; }.public-visit-form { padding: 17px; }.public-form-footer { align-items: stretch; flex-direction: column; }.public-form-footer button { width: 100%; }.login-visitor-route { align-items: stretch; }.login-visitor-route button { width: 100%; } }
+
+/* Public kiosk pages need to fit the shorter viewport of a tablet in landscape. */
+@media (orientation: landscape) and (max-width: 1100px) {
+  .public-visit-shell { padding: 20px 24px 32px; }
+  .public-visit-page { width: min(100%, 960px); }
+  .public-visit-header { align-items: flex-start; gap: 18px; margin-bottom: 12px; }
+  .public-visit-header h1 { font-size: 23px; }
+  .public-visit-header-actions { flex: 0 0 auto; }
+  .public-visit-form { gap: 17px; padding: 18px; }
+  .public-form-section { gap: 12px; }
+  .public-form-section-heading { padding-bottom: 10px; }
+  .public-form-input { min-height: 40px; }
+  .public-visit-form textarea.public-form-input { min-height: 74px; }
+  .public-new-company { padding: 10px; }
+}
+
+.safety-induction-page { min-height: 100dvh; }
+.safety-induction-header-inner { min-width: 0; }
+.safety-induction-header-inner > div:first-child { min-width: 0; }
+.safety-induction-header-inner h1,
+.safety-induction-header-inner p { overflow-wrap: anywhere; }
+.safety-induction-media-frame { min-width: 0; }
+.safety-induction-media { max-width: 100%; }
+
+@media (orientation: landscape) and (max-width: 1100px) {
+  .safety-induction-header { padding: 10px 18px; }
+  .safety-induction-header-inner { gap: 16px; }
+  .safety-induction-header-inner > div:last-child { flex: 0 0 auto; white-space: nowrap; }
+  .safety-induction-content { padding: 16px 18px 24px; }
+  .safety-induction-card > div:last-child,
+  .safety-induction-page .bg-white.border.rounded.p-6 { padding: 18px; }
+  .safety-induction-card h2 { font-size: 17px; }
+  .safety-induction-media-frame { padding: 10px; }
+  .safety-induction-media { max-height: min(52vh, 390px); }
+  .safety-induction-media-frame iframe { height: min(52vh, 390px); }
+}
+
+@media (orientation: landscape) and (max-width: 760px) {
+  .public-visit-shell { padding: 14px 16px 24px; }
+  .public-visit-header { flex-direction: column; }
+  .public-visit-header-actions { width: 100%; }
+  .public-visit-form { padding: 15px; }
+  .public-form-footer { align-items: stretch; flex-direction: column; }
+  .public-form-footer button { width: 100%; }
+  .safety-induction-header-inner { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .safety-induction-header-inner > div:last-child { white-space: normal; }
+  .safety-induction-content { padding: 12px 12px 20px; }
+}
 main button.bg-blue-700, main button.bg-blue-600 {
   background: var(--bmc-blue);
   border-radius: var(--radius-sm);

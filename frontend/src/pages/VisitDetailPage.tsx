@@ -8,7 +8,7 @@ import { DevDeleteButton } from '../components/DevFillButton';
 import { ErrorState } from '../components/AsyncState';
 import { userFacingError } from '../api/client';
 import { confirmAction } from '../components/ConfirmationHost';
-import { issueInductionToken } from '../api/safety-inductions.api';
+import { completeInductionForStaff, issueInductionToken } from '../api/safety-inductions.api';
 import { useLanguage } from '../i18n/LanguageContext';
 import { VisitorBadge } from '../components/VisitorBadge';
 
@@ -23,6 +23,7 @@ export function VisitDetailPage() {
   const [error, setError] = useState('');
   const [printBadge, setPrintBadge] = useState(false);
   const [inductionLoading, setInductionLoading] = useState(false);
+  const [staffInductionLoading, setStaffInductionLoading] = useState(false);
 
   useEffect(() => {
     load();
@@ -71,6 +72,20 @@ export function VisitDetailPage() {
     try { const access = await issueInductionToken(visit.Id); navigate(`/safety-induction/${access.token}`); }
     catch (cause) { setError(userFacingError(cause, language)); }
     finally { setInductionLoading(false); }
+  }
+
+  async function completeForStaff() {
+    if (!visit || staffInductionLoading) return;
+    if (!await confirmAction('Tandai safety induction selesai untuk semua visitor yang belum menyelesaikannya?')) return;
+    setStaffInductionLoading(true); setError('');
+    try {
+      await completeInductionForStaff(visit.Id);
+      await load();
+    } catch (cause) {
+      setError(userFacingError(cause, language));
+    } finally {
+      setStaffInductionLoading(false);
+    }
   }
 
   async function handleDelete() {
@@ -201,6 +216,15 @@ export function VisitDetailPage() {
                 className="text-sm px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
               >
                 {inductionLoading ? t('visitDetail.inductionPreparing') : t('visitDetail.startInduction')}
+              </button>
+            )}
+            {['ADMIN', 'SECURITY'].includes(user?.role || '') && visit.Status === 'PENDING_INDUCTION' && visit.SafetySummary.requiresInduction > 0 && (
+              <button
+                onClick={() => void completeForStaff()}
+                disabled={staffInductionLoading}
+                className="text-sm px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 disabled:opacity-40"
+              >
+                {staffInductionLoading ? 'Menyelesaikan...' : 'Selesaikan Safety Induction'}
               </button>
             )}
             {visit.Status === 'READY_FOR_CHECKIN' && (

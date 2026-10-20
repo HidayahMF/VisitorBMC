@@ -81,3 +81,9 @@ export async function completeGroupInduction(data: {
     body: JSON.stringify(data),
   });
 }
+
+export async function completeInductionForStaff(visitId: number): Promise<{ workflow: InductionWorkflow }> {
+  return apiClient(`/safety-inductions/staff-complete/${visitId}`, {
+    method: 'POST',
+  });
+}

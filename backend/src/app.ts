@@ -54,7 +54,7 @@ app.get('/api/companies/:id', authenticate, companiesRoutes.getById);
 app.post('/api/companies', authenticate, companiesRoutes.create);
 app.put('/api/companies/:id', authenticate, authorize('ADMIN', 'SECURITY'), companiesRoutes.update);
 app.patch('/api/companies/:id/status', authenticate, authorize('ADMIN', 'SECURITY'), companiesRoutes.updateStatus);
-app.delete('/api/companies/:id', authenticate, authorize('ADMIN'), companiesRoutes.remove);
+app.delete('/api/companies/:id', authenticate, authorize('ADMIN', 'SECURITY'), companiesRoutes.remove);
 
 app.get('/api/visitors', authenticate, visitorsRoutes.list);
 app.get('/api/visitors/search', authenticate, visitorsRoutes.search);
@@ -91,7 +91,8 @@ app.patch('/api/safety-inductions/manage/contents/:id/status', authenticate, aut
 app.delete('/api/safety-inductions/manage/contents/:id', authenticate, authorize('ADMIN'), safetyInductionsRoutes.removeContent);
 app.get('/api/safety-inductions/visitor/:visitorId/history', authenticate, safetyInductionsRoutes.getVisitorHistory);
   app.post('/api/safety-inductions/complete', publicInductionLimiter, safetyInductionsRoutes.complete);
-  app.post('/api/safety-inductions/complete-group', publicInductionLimiter, safetyInductionsRoutes.completeGroup);
+ app.post('/api/safety-inductions/complete-group', publicInductionLimiter, safetyInductionsRoutes.completeGroup);
+ app.post('/api/safety-inductions/staff-complete/:visitId', authenticate, authorize('ADMIN', 'SECURITY'), safetyInductionsRoutes.completeForStaff);
 
 app.get('/api/hris/employees', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), hrisRoutes.search);
 app.get('/api/audit-logs', authenticate, authorize('ADMIN'), auditRoutes.list);

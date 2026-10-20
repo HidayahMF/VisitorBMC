@@ -22,6 +22,7 @@ import {
   completeInductionByToken,
   createPublicVisit,
   completeGroupInductionByToken,
+  completeInductionForStaff,
 } from '../services/safety-inductions.service';
 
 const contentUploadDir = path.join(env.UPLOAD_DIR, 'safety-induction');
@@ -135,6 +136,16 @@ export async function completeGroup(req: Request, res: Response, next: NextFunct
     };
     if (!token || !Array.isArray(visitorIds)) throw new AppError('Induction token and visitor IDs are required', 400);
     res.status(200).json(await completeGroupInductionByToken(token, visitorIds, acknowledged === true, req.ip));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function completeForStaff(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    const visitId = Number(req.params.visitId);
+    if (!Number.isInteger(visitId)) throw new AppError('Invalid visit ID', 400);
+    res.status(200).json(await completeInductionForStaff(visitId, req.user!.userId, req.ip));
   } catch (error) {
     next(error);
   }

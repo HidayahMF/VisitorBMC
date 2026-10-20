@@ -77,6 +77,7 @@ Base URL: `VITE_API_URL` (default `http://online.bmc.co.id:47213`). Ada juga bac
 | `/api/travel/depart` | POST | Catat keberangkatan Security. Body `{id, nip, departureTime}`; mengubah status internal menjadi `SEDANG_TUGAS_LUAR`. |
 | `/api/travel/return` | POST | Proxy VisitorBMC terautentikasi cookie. Body `{id, nip}` — catat karyawan tugas luar sudah kembali |
 | `/api/security/report?type=&start=&end=` | GET | Proxy VisitorBMC terautentikasi cookie. `type`: `travel` \| `izin` \| `kembali`; `start`/`end`: ISO date → `{rows: [...]}` |
+| `/api/safety-inductions/staff-complete/:visitId` | POST | Staff `ADMIN`/`SECURITY` menandai seluruh visitor yang masih memerlukan induction sebagai selesai dan mencatat user staff sebagai pembuat |
 
 **Aturan klien (`src/lib/api.js`)**:
 - Semua request mengirim cookie JWT VisitorBMC melalui `credentials: include`.

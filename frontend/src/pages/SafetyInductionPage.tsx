@@ -147,9 +147,9 @@ export function SafetyInductionPage() {
   const totalVisitors = workflow?.visitors.length ?? 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+      <div className="min-h-screen bg-gray-50 safety-induction-page">
+       <div className="bg-white border-b border-gray-200 px-4 py-3 safety-induction-header">
+         <div className="max-w-4xl mx-auto flex items-center justify-between safety-induction-header-inner">
           <div>
             <h1 className="font-bold text-blue-900">Safety Induction</h1>
              <p className="text-sm text-gray-700">Grup visitor: <strong>{workflow?.visitors.length ?? 0} orang</strong></p>
@@ -163,8 +163,8 @@ export function SafetyInductionPage() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="bg-white border rounded mb-4">
+      <div className="max-w-4xl mx-auto px-4 py-6 safety-induction-content">
+        <div className="bg-white border rounded mb-4 safety-induction-card">
           <div className="px-4 py-3 border-b bg-gray-50">
              <p className="text-sm font-medium">Safety Induction untuk seluruh grup</p>
           </div>
@@ -174,10 +174,10 @@ export function SafetyInductionPage() {
               <p className="text-sm text-gray-600 mb-4">{currentContent.Description}</p>
             )}
 
-            <div className="bg-gray-100 rounded p-4 text-center mb-4">
+            <div className="bg-gray-100 rounded p-4 text-center mb-4 safety-induction-media-frame">
               {currentContent.ContentType === 'VIDEO' ? (
                 <video
-                  className="w-full max-h-[520px] rounded"
+                  className="w-full max-h-[520px] rounded safety-induction-media"
                   controls
                   controlsList="nodownload"
                   preload="metadata"
@@ -190,11 +190,11 @@ export function SafetyInductionPage() {
                 </video>
               ) : currentContent.ContentType === 'PDF' ? (
                 <>
-                  <iframe className="w-full h-[520px] rounded bg-white" src={currentContentUrl} title={currentContent.Title || 'Dokumen safety induction'} />
+                   <iframe className="w-full h-[520px] rounded bg-white safety-induction-media" src={currentContentUrl} title={currentContent.Title || 'Dokumen safety induction'} />
                   <a className="inline-block mt-2 text-sm text-blue-700 hover:underline" href={currentContentUrl} target="_blank" rel="noreferrer">Buka dokumen di tab baru</a>
                 </>
               ) : (
-                <img className="mx-auto max-h-[520px] w-auto rounded object-contain" src={currentContentUrl} alt={currentContent.Title || 'Safety induction content'} />
+                 <img className="mx-auto max-h-[520px] w-auto rounded object-contain safety-induction-media" src={currentContentUrl} alt={currentContent.Title || 'Safety induction content'} />
               )}
             </div>
 
