@@ -8,7 +8,8 @@ import { env } from '../config/env';
 import crypto from 'crypto';
 import { findCompaniesBySearch } from './companies.service';
 import { createVisitor, searchVisitors } from './visitors.service';
-import { createVisit } from './visits.service';
+import { createVisit, safetyContentCategory } from './visits.service';
+import { type PurposeCategory } from './visits.service';
 
 export interface ISafetyInduction {
   Id: number;
@@ -31,7 +32,7 @@ export interface ISafetyInductionContent {
   SortOrder: number;
   IsRequired: boolean;
   IsActive: boolean;
-  PurposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
+  PurposeCategory: PurposeCategory;
   CreatedAt: Date;
 }
 
@@ -44,7 +45,7 @@ export interface PublicInductionWorkflow {
   completedCount: number;
   remainingCount: number;
   nextVisitorId: number | null;
-  purposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
+  purposeCategory: PurposeCategory;
 }
 
 const PUBLIC_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
@@ -193,7 +194,7 @@ export interface IPublicRegistrationParams {
   companyName: string;
   hostName: string;
   purpose: string;
-  purposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
+  purposeCategory: PurposeCategory;
   visitors: Array<{ name: string; phoneNumber?: string }>;
   ipAddress?: string;
 }
@@ -223,7 +224,7 @@ export async function createPublicVisit(
     .map((visitor) => ({ name: visitor.name.trim(), phoneNumber: visitor.phoneNumber?.trim() }))
     .filter((visitor) => visitor.name);
 
-   if (!companyName || !hostName || !purpose || !['MEETING', 'TECHNICAL_SUPPORT'].includes(params.purposeCategory) || visitors.length === 0 || visitors.length > 20) {
+    if (!companyName || !hostName || !purpose || !['TAKE_GOODS', 'MONITORING', 'SEND_GOODS', 'MEETING', 'TECHNICAL_SUPPORT'].includes(params.purposeCategory) || visitors.length === 0 || visitors.length > 20) {
     throw new AppError('Company, host, purpose, and 1-20 visitors are required', 400);
   }
 
@@ -263,7 +264,7 @@ export async function createPublicVisit(
     visitorIds: createdVisitors.map((visitor) => visitor.id),
     ipAddress: params.ipAddress,
   }, systemUserId);
-   const activeContents = await getActiveInductionWithContents(params.purposeCategory);
+    const activeContents = await getActiveInductionWithContents(params.purposeCategory);
    const access = activeContents.contents.length > 0
      ? await issuePublicInductionToken(visit.Id)
      : { token: '', expiresAt: new Date(0) };
@@ -277,14 +278,14 @@ export async function createPublicVisit(
   };
 }
 
-export async function getActiveInductionWithContents(purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT'): Promise<IInductionContentResponse> {
+export async function getActiveInductionWithContents(purposeCategory?: PurposeCategory): Promise<IInductionContentResponse> {
   const config = await getActiveSafetyInductionConfig();
   const pool = await getDbConnection();
 
   const contentsResult = await pool
     .request()
     .input('inductionId', sql.Int, config.id)
-    .input('purposeCategory', sql.VarChar(30), purposeCategory ?? 'TECHNICAL_SUPPORT')
+    .input('purposeCategory', sql.VarChar(30), safetyContentCategory(purposeCategory))
     .query(`
        SELECT Id, SafetyInductionId, ContentType, ContentUrl, Title, Description, SortOrder, IsRequired, IsActive, CreatedAt, PurposeCategory
       FROM vms.SafetyInductionContents
@@ -315,12 +316,12 @@ export async function getActiveInductionWithContents(purposeCategory?: 'MEETING'
   };
 }
 
-export async function listManagedInductionContents(purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT'): Promise<ISafetyInductionContent[]> {
+export async function listManagedInductionContents(purposeCategory?: PurposeCategory): Promise<ISafetyInductionContent[]> {
   const config = await getActiveSafetyInductionConfig();
   const pool = await getDbConnection();
   const request = pool.request()
     .input('inductionId', sql.Int, config.id)
-    .input('purposeCategory', sql.VarChar(30), purposeCategory ?? null);
+    .input('purposeCategory', sql.VarChar(30), purposeCategory ? safetyContentCategory(purposeCategory) : null);
   const result = await request.query(`
       SELECT Id, SafetyInductionId, ContentType, ContentUrl, Title, Description,
              SortOrder, IsRequired, IsActive, CreatedAt
@@ -351,7 +352,7 @@ export async function createInductionContent(params: {
   contentType: 'VIDEO' | 'IMAGE' | 'PDF';
   title?: string;
   description?: string;
-  purposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
+  purposeCategory: PurposeCategory;
 }): Promise<ISafetyInductionContent> {
   const config = await getActiveSafetyInductionConfig();
   const pool = await getDbConnection();
@@ -361,7 +362,7 @@ export async function createInductionContent(params: {
     .input('contentUrl', sql.NVarChar(500), `/uploads/safety-induction/${params.file.filename}`)
     .input('title', sql.NVarChar(200), params.title?.trim() || params.file.filename)
     .input('description', sql.NVarChar(1000), params.description?.trim() || null)
-    .input('purposeCategory', sql.VarChar(30), params.purposeCategory)
+    .input('purposeCategory', sql.VarChar(30), safetyContentCategory(params.purposeCategory))
     .query(`
       INSERT INTO vms.SafetyInductionContents
         (SafetyInductionId, ContentType, ContentUrl, Title, Description, SortOrder, IsRequired, IsActive, PurposeCategory)

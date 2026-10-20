@@ -7,11 +7,16 @@ import { DevFillButton } from '../components/DevFillButton';
 import { EmptyState } from '../components/AsyncState';
 import k3Video from '../assets/VIDEO K3 BMC VERSi TAMU  FINAL durasi 3.55.mov';
 import safetyRidingImage from '../assets/IMBAUAN BMC SAFETY RIDING.png';
+import { type PurposeCategory } from '../types/visit';
 
 function resolveContentUrl(content: InductionContent): string {
   if (content.ContentUrl === 'asset://bmc-k3-video') return k3Video;
   if (content.ContentUrl === 'asset://bmc-safety-riding') return safetyRidingImage;
   return content.ContentUrl;
+}
+
+function safetyContentCategory(category: PurposeCategory): 'MEETING' | 'TECHNICAL_SUPPORT' {
+  return category === 'TECHNICAL_SUPPORT' ? 'TECHNICAL_SUPPORT' : 'MEETING';
 }
 
 export function SafetyInductionPage() {
@@ -42,7 +47,7 @@ export function SafetyInductionPage() {
     try {
       if (!token) throw new Error('Invalid induction token');
        const workflowData = await getInductionWorkflow(token);
-       const data = await getActiveInductionContents(workflowData.purposeCategory);
+       const data = await getActiveInductionContents(safetyContentCategory(workflowData.purposeCategory));
       setInduction(data.induction);
       setContents(data.contents);
       setWorkflow(workflowData);

@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { type VisitDetail, type VisitListResponse, type SafetyCheckSummary, type DuplicateCheckResult } from '../types/visit';
+import { type VisitDetail, type VisitListResponse, type SafetyCheckSummary, type DuplicateCheckResult, type PurposeCategory } from '../types/visit';
 import { type DashboardStats } from '../types/dashboard';
 
 export async function listVisits(params?: {
@@ -28,7 +28,7 @@ export async function createVisit(data: {
   companyId: number;
   hostName: string;
   purpose: string;
-  purposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
+  purposeCategory: PurposeCategory;
   visitDate: string;
   visitorIds: number[];
 }): Promise<VisitDetail> {
@@ -41,7 +41,7 @@ export async function createVisit(data: {
 export async function safetyCheck(data: {
   companyId: number;
   visitorIds: number[];
-  purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
+  purposeCategory?: PurposeCategory;
 }): Promise<SafetyCheckSummary> {
   return apiClient<SafetyCheckSummary>('/visits/safety-check', {
     method: 'POST',

@@ -58,7 +58,7 @@ Entitas utama (semuanya karyawan, diidentifikasi dengan `nip` + `nama`):
 
 1. **Travel (Tugas Luar)** — karyawan keluar kantor untuk tugas dinas.
    Field: `id, nip, nama, tujuan, keperluan, jamKeluar` (+ `tanggal`, `jamKembali` di report)
-2. **Izin** — karyawan izin tidak masuk / keluar sementara.
+ 2. **Izin** — karyawan izin tidak masuk / keluar sementara.
    Field: `id, nip, nama, jenis ("Izin Khusus" | "Izin Sehari" | ...), keperluan, jamMulai, jamSelesai`
    `jamMulai/jamSelesai` bisa `null` (izin sehari penuh).
 3. **Kembali (Kepulangan)** — catatan karyawan yang sudah kembali.
@@ -78,6 +78,9 @@ Base URL: `VITE_API_URL` (default `http://online.bmc.co.id:47213`). Ada juga bac
 | `/api/travel/return` | POST | Proxy VisitorBMC terautentikasi cookie. Body `{id, nip}` — catat karyawan tugas luar sudah kembali |
 | `/api/security/report?type=&start=&end=` | GET | Proxy VisitorBMC terautentikasi cookie. `type`: `travel` \| `izin` \| `kembali`; `start`/`end`: ISO date → `{rows: [...]}` |
 | `/api/safety-inductions/staff-complete/:visitId` | POST | Staff `ADMIN`/`SECURITY` menandai seluruh visitor yang masih memerlukan induction sebagai selesai dan mencatat user staff sebagai pembuat |
+
+Kategori `PurposeCategory` yang didukung: `TAKE_GOODS` (Ambil Barang), `MONITORING` (Monitoring), `SEND_GOODS` (Kirim Barang), `MEETING` (Meeting), dan `TECHNICAL_SUPPORT` (Technical Support/Teknisi). Jalankan migration `backend/database/017_visit_purpose_category_expansion.sql` pada database sebelum memakai kategori baru.
+Konten Safety Induction dipetakan: `TAKE_GOODS`, `MONITORING`, `SEND_GOODS`, dan `MEETING` memakai konten kategori `MEETING`; hanya `TECHNICAL_SUPPORT` yang memakai konten kategori `TECHNICAL_SUPPORT`.
 
 **Aturan klien (`src/lib/api.js`)**:
 - Semua request mengirim cookie JWT VisitorBMC melalui `credentials: include`.

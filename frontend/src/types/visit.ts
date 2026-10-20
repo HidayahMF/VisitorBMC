@@ -1,3 +1,4 @@
+export type PurposeCategory = 'TAKE_GOODS' | 'MONITORING' | 'SEND_GOODS' | 'MEETING' | 'TECHNICAL_SUPPORT';
 export type VisitStatus = 'PENDING_INDUCTION' | 'READY_FOR_CHECKIN' | 'IN' | 'OUT' | 'CANCELLED';
 
 export type SafetyStatus = 'VALID' | 'REQUIRED' | 'EXPIRED';
@@ -18,7 +19,7 @@ export interface Visit {
   CompanyName: string;
   HostName: string;
   Purpose: string;
-  PurposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
+  PurposeCategory?: PurposeCategory;
   VisitDate: string;
   CheckInTime: string | null;
   CheckOutTime: string | null;

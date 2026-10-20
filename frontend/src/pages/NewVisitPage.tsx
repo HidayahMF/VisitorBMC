@@ -7,7 +7,7 @@ import { searchEmployees, type Employee } from '../api/hris.api';
 import { Layout } from '../components/Layout';
 import { type Company } from '../types/company';
 import { type Visitor } from '../types/visitor';
-import { type SafetyCheckSummary, type VisitorSafetyCheck } from '../types/visit';
+import { type PurposeCategory, type SafetyCheckSummary, type VisitorSafetyCheck } from '../types/visit';
 import { DevFillButton } from '../components/DevFillButton';
 
 interface SelectedVisitor extends Visitor {
@@ -35,7 +35,7 @@ export function NewVisitPage() {
   const [hostResults, setHostResults] = useState<Employee[]>([]);
   const [hostOpen, setHostOpen] = useState(false);
   const [purpose, setPurpose] = useState('');
-  const [purposeCategory, setPurposeCategory] = useState<'MEETING' | 'TECHNICAL_SUPPORT' | ''>('');
+  const [purposeCategory, setPurposeCategory] = useState<PurposeCategory | ''>('');
   const [visitDate, setVisitDate] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -277,7 +277,7 @@ export function NewVisitPage() {
       const result = await safetyCheck({
         companyId,
         visitorIds,
-        purposeCategory: purposeCategory === 'MEETING' || purposeCategory === 'TECHNICAL_SUPPORT' ? purposeCategory : undefined,
+         purposeCategory: purposeCategory || undefined,
       });
 
       if (requestId !== safetyRequestId.current) return;
@@ -457,9 +457,12 @@ export function NewVisitPage() {
             </div>
 
              <label htmlFor="new-visit-category" className="block text-sm font-medium mb-1">Kategori Keperluan Kunjungan <span aria-hidden="true">*</span></label>
-             <select id="new-visit-category" value={purposeCategory} onChange={(e) => setPurposeCategory(e.target.value as 'MEETING' | 'TECHNICAL_SUPPORT' | '')} className="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-4" required>
+             <select id="new-visit-category" value={purposeCategory} onChange={(e) => setPurposeCategory(e.target.value as PurposeCategory | '')} className="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-4" required>
                <option value="">Pilih kategori...</option>
-               <option value="MEETING">Kirim Barang / Meeting</option>
+               <option value="TAKE_GOODS">Ambil Barang</option>
+               <option value="MONITORING">Monitoring</option>
+               <option value="SEND_GOODS">Kirim Barang</option>
+               <option value="MEETING">Meeting</option>
                <option value="TECHNICAL_SUPPORT">Technical Support (Teknisi)</option>
              </select>
              <label htmlFor="new-visit-purpose" className="block text-sm font-medium mb-1">Tujuan Kunjungan <span aria-hidden="true">*</span></label>

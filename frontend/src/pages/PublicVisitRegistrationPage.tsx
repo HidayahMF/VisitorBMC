@@ -7,6 +7,7 @@ import { type Company } from '../types/company';
 import { DevFillButton } from '../components/DevFillButton';
 import { searchPublicVisitors, type PublicVisitorMatch } from '../api/visitors.api';
 import { useLanguage } from '../i18n/LanguageContext';
+import { type PurposeCategory } from '../types/visit';
 
 interface VisitorDraft { name: string; phoneNumber: string }
 
@@ -23,7 +24,7 @@ export function PublicVisitRegistrationPage() {
   const [hostResults, setHostResults] = useState<Employee[]>([]);
   const [hostOpen, setHostOpen] = useState(false);
   const [purpose, setPurpose] = useState('');
-  const [purposeCategory, setPurposeCategory] = useState<'MEETING' | 'TECHNICAL_SUPPORT' | ''>('');
+  const [purposeCategory, setPurposeCategory] = useState<PurposeCategory | ''>('');
   const [visitors, setVisitors] = useState<VisitorDraft[]>([]);
   const [visitorSearch, setVisitorSearch] = useState('');
   const [visitorMatches, setVisitorMatches] = useState<PublicVisitorMatch[]>([]);
@@ -270,7 +271,7 @@ export function PublicVisitRegistrationPage() {
             </div>
           </div>
             <label className="block text-sm font-medium" htmlFor="public-purpose">{t('publicRegistration.purposeLabel')} *<textarea id="public-purpose" className="public-form-input mt-1 w-full" rows={3} value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder={t('publicRegistration.purposePlaceholder')} required aria-invalid={Boolean(fieldErrors.purpose)} aria-describedby="public-purpose-help public-purpose-error" /></label><p id="public-purpose-help" className="public-field-help">{t('publicRegistration.purposeHelper')}</p>{fieldErrors.purpose && <p id="public-purpose-error" className="public-field-error" role="alert">{fieldErrors.purpose}</p>}
-            <label className="block text-sm font-medium mt-4" htmlFor="public-purpose-category">Kategori Keperluan Kunjungan *<select id="public-purpose-category" className="public-form-input mt-1 w-full" value={purposeCategory} onChange={(event) => setPurposeCategory(event.target.value as 'MEETING' | 'TECHNICAL_SUPPORT' | '')} required><option value="">Pilih kategori...</option><option value="MEETING">Kirim Barang / Meeting</option><option value="TECHNICAL_SUPPORT">Technical Support (Teknisi)</option></select></label>{fieldErrors.purposeCategory && <p className="public-field-error" role="alert">{fieldErrors.purposeCategory}</p>}
+             <label className="block text-sm font-medium mt-4" htmlFor="public-purpose-category">Kategori Keperluan Kunjungan *<select id="public-purpose-category" className="public-form-input mt-1 w-full" value={purposeCategory} onChange={(event) => setPurposeCategory(event.target.value as PurposeCategory | '')} required><option value="">Pilih kategori...</option><option value="TAKE_GOODS">Ambil Barang</option><option value="MONITORING">Monitoring</option><option value="SEND_GOODS">Kirim Barang</option><option value="MEETING">Meeting</option><option value="TECHNICAL_SUPPORT">Technical Support (Teknisi)</option></select></label>{fieldErrors.purposeCategory && <p className="public-field-error" role="alert">{fieldErrors.purposeCategory}</p>}
           </section>
            <section aria-labelledby="public-visitors-title">
               <div className="mb-3 flex items-start justify-between gap-3"><div><h2 id="public-visitors-title" className="font-semibold">{t('publicRegistration.visitorInformation')}</h2><p className="text-xs text-slate-500">{t('publicRegistration.visitorInformationDescription')}</p></div><button type="button" onClick={() => setShowNewVisitor((current) => !current)} className="text-sm font-semibold text-blue-700" disabled={!selectedCompanyId || visitors.length >= 20}>{showNewVisitor ? t('publicRegistration.cancelAdd') : `+ ${t('publicRegistration.addNewVisitor')}`}</button></div>

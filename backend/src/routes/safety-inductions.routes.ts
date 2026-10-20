@@ -49,7 +49,7 @@ export async function getActiveContents(
   next: NextFunction,
 ) {
   try {
-    const category = req.query.category === 'MEETING' || req.query.category === 'TECHNICAL_SUPPORT' ? req.query.category : undefined;
+    const category = ['TAKE_GOODS', 'MONITORING', 'SEND_GOODS', 'MEETING', 'TECHNICAL_SUPPORT'].includes(String(req.query.category)) ? String(req.query.category) as 'TAKE_GOODS' | 'MONITORING' | 'SEND_GOODS' | 'MEETING' | 'TECHNICAL_SUPPORT' : undefined;
     const data = await getActiveInductionWithContents(category);
     res.json(data);
   } catch (error) {
@@ -66,7 +66,7 @@ export async function publicRegister(req: Request, res: Response, next: NextFunc
       companyName?: string;
       hostName?: string;
        purpose?: string;
-       purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
+       purposeCategory?: 'TAKE_GOODS' | 'MONITORING' | 'SEND_GOODS' | 'MEETING' | 'TECHNICAL_SUPPORT';
       visitors?: Array<{ name?: string; phoneNumber?: string }>;
     };
      if (!companyName || !hostName || !purpose || !purposeCategory || !Array.isArray(visitors)) {
@@ -157,7 +157,7 @@ export async function managedContents(
   next: NextFunction,
 ) {
   try {
-    const category = req.query.category === 'MEETING' || req.query.category === 'TECHNICAL_SUPPORT' ? req.query.category : undefined;
+     const category = ['TAKE_GOODS', 'MONITORING', 'SEND_GOODS', 'MEETING', 'TECHNICAL_SUPPORT'].includes(String(req.query.category)) ? String(req.query.category) as 'TAKE_GOODS' | 'MONITORING' | 'SEND_GOODS' | 'MEETING' | 'TECHNICAL_SUPPORT' : undefined;
     res.json(await listManagedInductionContents(category));
   } catch (error) {
     next(error);
@@ -180,7 +180,7 @@ export const uploadContent = [upload.single('file'), async (
       : extension === '.jpg' || extension === '.jpeg' || extension === '.png' || extension === '.gif'
         ? 'IMAGE'
         : 'VIDEO';
-    if (req.body.purposeCategory !== 'MEETING' && req.body.purposeCategory !== 'TECHNICAL_SUPPORT') {
+     if (!['TAKE_GOODS', 'MONITORING', 'SEND_GOODS', 'MEETING', 'TECHNICAL_SUPPORT'].includes(req.body.purposeCategory)) {
       throw new AppError('A valid content category is required', 400);
     }
     const content = await createInductionContent({

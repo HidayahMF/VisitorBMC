@@ -3,6 +3,12 @@ import { AppError } from '../middleware/errorHandler';
 import { checkVisitorSafetyClearance, type VisitorSafetyClearance } from './safety-clearance.service';
 import { logAudit } from './audit-log.service';
 
+export type PurposeCategory = 'TAKE_GOODS' | 'MONITORING' | 'SEND_GOODS' | 'MEETING' | 'TECHNICAL_SUPPORT';
+
+export function safetyContentCategory(category: PurposeCategory | undefined): 'MEETING' | 'TECHNICAL_SUPPORT' {
+  return category === 'TECHNICAL_SUPPORT' ? 'TECHNICAL_SUPPORT' : 'MEETING';
+}
+
 export interface IVisit {
   Id: number;
   VisitCode: string;
@@ -10,7 +16,7 @@ export interface IVisit {
   CompanyName: string;
   HostName: string;
   Purpose: string;
-  PurposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
+  PurposeCategory?: PurposeCategory;
   VisitDate: Date;
   CheckInTime: Date | null;
   CheckOutTime: Date | null;
@@ -59,7 +65,7 @@ export interface ICreateVisitParams {
   companyId: number;
   hostName: string;
   purpose: string;
-  purposeCategory: 'MEETING' | 'TECHNICAL_SUPPORT';
+  purposeCategory: PurposeCategory;
   visitDate: string;
   visitorIds: number[];
   ipAddress?: string;
@@ -255,7 +261,10 @@ export async function getVisitById(id: number): Promise<IVisitDetail | null> {
       SafetySummary: { totalVisitors: 0, cleared: 0, requiresInduction: 0 },
     };
   }
-  const clearance: { visitors: VisitorSafetyClearance[] } = visitRow.PurposeCategory === 'TECHNICAL_SUPPORT'
+  const contentResult = await pool.request()
+    .input('purposeCategory', sql.VarChar(30), safetyContentCategory(visitRow.PurposeCategory))
+    .query(`SELECT COUNT(*) AS count FROM vms.SafetyInductionContents sic INNER JOIN vms.SafetyInductions si ON si.Id = sic.SafetyInductionId WHERE si.IsActive = 1 AND sic.IsActive = 1 AND sic.PurposeCategory = @purposeCategory`);
+  const clearance: { visitors: VisitorSafetyClearance[] } = contentResult.recordset[0].count > 0
     ? await checkVisitorSafetyClearance(visitorsResult.recordset.map((row) => row.Id), visitRow.CompanyId)
     : { visitors: visitorsResult.recordset.map((row) => ({ visitorId: row.Id, visitorName: row.VisitorName, status: 'VALID' as const })) };
   const visitors: IVisitVisitor[] = visitorsResult.recordset.map((row) => {
@@ -304,7 +313,7 @@ export async function getVisitById(id: number): Promise<IVisitDetail | null> {
 export async function createVisit(params: ICreateVisitParams, createdBy: number): Promise<IVisitDetail> {
   const { companyId, hostName, purpose, purposeCategory, visitDate, visitorIds } = params;
 
-  if (!Number.isInteger(companyId) || !hostName?.trim() || !purpose?.trim() || !['MEETING', 'TECHNICAL_SUPPORT'].includes(purposeCategory) || !visitDate || !Array.isArray(visitorIds) || !visitorIds.length) {
+   if (!Number.isInteger(companyId) || !hostName?.trim() || !purpose?.trim() || !['TAKE_GOODS', 'MONITORING', 'SEND_GOODS', 'MEETING', 'TECHNICAL_SUPPORT'].includes(purposeCategory) || !visitDate || !Array.isArray(visitorIds) || !visitorIds.length) {
     throw new AppError('Missing required fields', 400);
   }
 
@@ -351,7 +360,7 @@ export async function createVisit(params: ICreateVisitParams, createdBy: number)
     transactionStarted = true;
 
     const contentResult = await pool.request()
-      .input('purposeCategory', sql.VarChar(30), purposeCategory)
+      .input('purposeCategory', sql.VarChar(30), safetyContentCategory(purposeCategory))
       .query(`SELECT COUNT(*) AS count FROM vms.SafetyInductionContents sic INNER JOIN vms.SafetyInductions si ON si.Id = sic.SafetyInductionId WHERE si.IsActive = 1 AND sic.IsActive = 1 AND sic.PurposeCategory = @purposeCategory`);
     const inductionEnabled = contentResult.recordset[0].count > 0;
     const clearance = inductionEnabled ? await checkVisitorSafetyClearance(uniqueVisitorIds, companyId) : null;
@@ -483,11 +492,11 @@ export async function checkVisitorDuplicate(params: {
 export async function safetyCheck(params: {
   companyId: number;
   visitorIds: number[];
-  purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
+  purposeCategory?: PurposeCategory;
 }) {
   const pool = await getDbConnection();
   const contentResult = await pool.request()
-    .input('purposeCategory', sql.VarChar(30), params.purposeCategory ?? 'TECHNICAL_SUPPORT')
+    .input('purposeCategory', sql.VarChar(30), safetyContentCategory(params.purposeCategory))
     .query(`SELECT COUNT(*) AS count FROM vms.SafetyInductionContents sic INNER JOIN vms.SafetyInductions si ON si.Id = sic.SafetyInductionId WHERE si.IsActive = 1 AND sic.IsActive = 1 AND sic.PurposeCategory = @purposeCategory`);
   if (contentResult.recordset[0].count === 0) {
     return { safetyInduction: null, summary: { totalVisitors: params.visitorIds.length, valid: params.visitorIds.length, required: 0, expired: 0, requiresInduction: 0 }, visitors: [] };

@@ -8,7 +8,7 @@ export interface InductionContent {
   SortOrder: number;
   IsRequired: boolean;
   IsActive: boolean;
-  PurposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
+  PurposeCategory?: import('./visit').PurposeCategory;
   CreatedAt: string;
 }
 

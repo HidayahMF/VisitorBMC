@@ -16,7 +16,7 @@
     IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_SICContents_PurposeCategory')
     BEGIN
         ALTER TABLE vms.SafetyInductionContents ADD CONSTRAINT CK_SICContents_PurposeCategory
-        CHECK (PurposeCategory IN ('MEETING', 'TECHNICAL_SUPPORT'));
+        CHECK (PurposeCategory IN ('TAKE_GOODS', 'MONITORING', 'SEND_GOODS', 'MEETING', 'TECHNICAL_SUPPORT'));
     END
     GO
 

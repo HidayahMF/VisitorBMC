@@ -65,7 +65,7 @@ export async function create(
       companyId?: number;
       hostName?: string;
       purpose?: string;
-      purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
+       purposeCategory?: 'TAKE_GOODS' | 'MONITORING' | 'SEND_GOODS' | 'MEETING' | 'TECHNICAL_SUPPORT';
       visitDate?: string;
       visitorIds?: number[];
     };
@@ -109,7 +109,7 @@ export async function safetyCheckHandler(
     const { companyId, visitorIds, purposeCategory } = req.body as {
       companyId?: number;
       visitorIds?: number[];
-      purposeCategory?: 'MEETING' | 'TECHNICAL_SUPPORT';
+       purposeCategory?: 'TAKE_GOODS' | 'MONITORING' | 'SEND_GOODS' | 'MEETING' | 'TECHNICAL_SUPPORT';
     };
 
     if (!companyId) {
