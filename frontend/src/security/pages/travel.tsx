@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import QrScanner from 'qr-scanner';
 import { departTravel, fetchOverview, returnTravel, fetchReport } from '../api';
 import { type Travel, type ReportRow } from '../types';
 import { findTravelByQr } from '../qr';
@@ -17,7 +18,6 @@ export function SecurityTravelPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerError, setScannerError] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
 
   // Report state
   const [reportRows, setReportRows] = useState<ReportRow[]>([]);
@@ -34,45 +34,24 @@ export function SecurityTravelPage() {
   }, [mode]);
 
   useEffect(() => {
-    if (!scannerOpen) {
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-      return;
-    }
-    let cancelled = false;
-    async function startScanner() {
-      if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) {
-        setScannerError('Peramban ini belum mendukung pemindaian QR kamera.');
+    if (!scannerOpen || !videoRef.current) return undefined;
+    const scanner = new QrScanner(videoRef.current, (result) => {
+      const travel = findTravelByQr(typeof result === 'string' ? result : result.data, items);
+      if (!travel) {
+        setScannerError('QR tidak cocok dengan tugas luar aktif.');
         return;
       }
-      try {
-        const detector = new BarcodeDetector({ formats: ['qr_code'] });
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-        if (cancelled) { stream.getTracks().forEach((track) => track.stop()); return; }
-        streamRef.current = stream;
-        if (videoRef.current) videoRef.current.srcObject = stream;
-        const scan = async () => {
-          if (cancelled || !videoRef.current) return;
-          try {
-            const codes = await detector.detect(videoRef.current);
-            const travel = codes.map((code) => findTravelByQr(code.rawValue, items)).find(Boolean);
-            if (travel) {
-              setScannerOpen(false);
-              if (travel.status === 'AKAN_TUGAS_LUAR') { setDepartureTime(new Date().toTimeString().slice(0, 5)); setDepartureId(travel); }
-              else { setReturnTime(new Date().toTimeString().slice(0, 5)); setConfirmId({ id: travel.id, nip: travel.nip, nama: travel.nama }); }
-              return;
-            }
-          } catch { /* Kamera belum punya frame yang dapat dibaca. */ }
-          window.requestAnimationFrame(scan);
-        };
-        void videoRef.current?.play();
-        window.requestAnimationFrame(scan);
-      } catch (cause) {
-        setScannerError(cause instanceof Error && cause.name === 'NotAllowedError' ? 'Akses kamera ditolak.' : 'Kamera tidak dapat dibuka.');
-      }
-    }
-    void startScanner();
-    return () => { cancelled = true; streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; };
+      setScannerOpen(false);
+      if (travel.status === 'AKAN_TUGAS_LUAR') { setDepartureTime(new Date().toTimeString().slice(0, 5)); setDepartureId(travel); }
+      else { setReturnTime(new Date().toTimeString().slice(0, 5)); setConfirmId({ id: travel.id, nip: travel.nip, nama: travel.nama }); }
+    }, {
+      preferredCamera: 'environment',
+      maxScansPerSecond: 10,
+      returnDetailedScanResult: true,
+      onDecodeError: (cause) => { if (cause !== QrScanner.NO_QR_CODE_FOUND) setScannerError('QR tidak dapat dibaca.'); },
+    });
+    scanner.start().catch((cause: unknown) => setScannerError(cause === 'Camera not found.' ? 'Kamera tidak ditemukan.' : cause instanceof DOMException && cause.name === 'NotAllowedError' ? 'Akses kamera ditolak.' : 'Kamera tidak dapat dibuka.'));
+    return () => scanner.destroy();
   }, [scannerOpen, items]);
 
   async function load() {
