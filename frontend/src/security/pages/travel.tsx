@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { departTravel, fetchOverview, returnTravel, fetchReport } from '../api';
 import { type Travel, type ReportRow } from '../types';
+import { findTravelByQr } from '../qr';
 
 export function SecurityTravelPage() {
   const [items, setItems] = useState<Travel[]>([]);
@@ -13,6 +14,10 @@ export function SecurityTravelPage() {
   const [departureTime, setDepartureTime] = useState(() => new Date().toTimeString().slice(0, 5));
   const [submitting, setSubmitting] = useState(false);
   const [mode, setMode] = useState<'live' | 'report'>('live');
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerError, setScannerError] = useState('');
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Report state
   const [reportRows, setReportRows] = useState<ReportRow[]>([]);
@@ -27,6 +32,48 @@ export function SecurityTravelPage() {
       void loadReport();
     }
   }, [mode]);
+
+  useEffect(() => {
+    if (!scannerOpen) {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      return;
+    }
+    let cancelled = false;
+    async function startScanner() {
+      if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) {
+        setScannerError('Peramban ini belum mendukung pemindaian QR kamera.');
+        return;
+      }
+      try {
+        const detector = new BarcodeDetector({ formats: ['qr_code'] });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        if (cancelled) { stream.getTracks().forEach((track) => track.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+        const scan = async () => {
+          if (cancelled || !videoRef.current) return;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            const travel = codes.map((code) => findTravelByQr(code.rawValue, items)).find(Boolean);
+            if (travel) {
+              setScannerOpen(false);
+              if (travel.status === 'AKAN_TUGAS_LUAR') { setDepartureTime(new Date().toTimeString().slice(0, 5)); setDepartureId(travel); }
+              else { setReturnTime(new Date().toTimeString().slice(0, 5)); setConfirmId({ id: travel.id, nip: travel.nip, nama: travel.nama }); }
+              return;
+            }
+          } catch { /* Kamera belum punya frame yang dapat dibaca. */ }
+          window.requestAnimationFrame(scan);
+        };
+        void videoRef.current?.play();
+        window.requestAnimationFrame(scan);
+      } catch (cause) {
+        setScannerError(cause instanceof Error && cause.name === 'NotAllowedError' ? 'Akses kamera ditolak.' : 'Kamera tidak dapat dibuka.');
+      }
+    }
+    void startScanner();
+    return () => { cancelled = true; streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null; };
+  }, [scannerOpen, items]);
 
   async function load() {
     setLoading(true);
@@ -112,6 +159,9 @@ export function SecurityTravelPage() {
           >
             Laporan Riwayat
           </button>
+          {mode === 'live' && <button type="button" className="primary-button" onClick={() => { setScannerError(''); setScannerOpen(true); }}>
+            Scan QR
+          </button>}
         </div>
       </div>
 
@@ -283,6 +333,7 @@ export function SecurityTravelPage() {
         </div>
       )}
       {departureId && <div className="content-preview-backdrop"><div className="bg-white rounded p-6 max-w-sm w-full space-y-4 shadow-xl border"><h3 className="font-bold text-base text-ink">Konfirmasi Keberangkatan</h3><p className="text-sm text-gray-600">Catat <strong>{departureId.nama}</strong> sebagai sedang tugas luar?</p><label className="block text-sm font-semibold text-gray-700" htmlFor="departure-time">Jam berangkat<input id="departure-time" type="time" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} className="mt-1 block w-full" disabled={submitting} /></label><div className="flex justify-end gap-2"><button type="button" className="secondary-button" onClick={() => setDepartureId(null)} disabled={submitting}>Batal</button><button type="button" className="primary-button !bg-blue-600 !border-blue-600" onClick={handleDeparture} disabled={submitting}>{submitting ? 'Menyimpan...' : 'Ya, Catat Berangkat'}</button></div></div></div>}
+      {scannerOpen && <div className="content-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="scanner-title"><div className="bg-white rounded p-6 max-w-md w-full space-y-4 shadow-xl border"><div className="flex justify-between items-center"><h3 id="scanner-title" className="font-bold text-base text-ink">Scan QR karyawan</h3><button type="button" className="secondary-button" onClick={() => setScannerOpen(false)}>Tutup</button></div><video ref={videoRef} className="w-full aspect-video rounded bg-black object-cover" muted playsInline />{scannerError ? <p className="text-sm text-red-600" role="alert">{scannerError}</p> : <p className="text-sm text-gray-600">Arahkan kamera ke QR pengajuan tugas luar.</p>}</div></div>}
     </div>
   );
 }
