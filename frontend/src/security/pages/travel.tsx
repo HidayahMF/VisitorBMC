@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import QrScanner from 'qr-scanner';
 import { departTravel, fetchOverview, returnTravel, fetchReport, scanTravel } from '../api';
 import { type Travel, type ReportRow } from '../types';
@@ -21,6 +21,7 @@ export function SecurityTravelPage() {
   const [scanSuccess, setScanSuccess] = useState<[string, string] | null>(null);
   const scanBusyRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Report state
   const [reportRows, setReportRows] = useState<ReportRow[]>([]);
@@ -57,6 +58,23 @@ export function SecurityTravelPage() {
     scanner.start().catch((cause: unknown) => setScannerError(cause === 'Camera not found.' ? 'Kamera tidak ditemukan.' : cause instanceof DOMException && cause.name === 'NotAllowedError' ? 'Akses kamera ditolak.' : 'Kamera tidak dapat dibuka.'));
     return () => scanner.destroy();
   }, [scannerOpen, scanSubmitting]);
+
+  async function handleQrImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const result = await QrScanner.scanImage(file, { returnDetailedScanResult: true });
+      const payload = parseTravelQr(result.data);
+      if (!payload) throw new Error('QR tidak valid atau sudah tidak berlaku.');
+      setScanSubmitting(true);
+      scanBusyRef.current = true;
+      await submitScan(payload.id, payload.token);
+    } catch (cause) {
+      console.error('[travel-scan] gagal membaca gambar', cause);
+      setScannerError('QR tidak valid atau sudah tidak berlaku.');
+    }
+  }
 
   async function submitScan(id: string, token: string) {
     try {
@@ -331,7 +349,7 @@ export function SecurityTravelPage() {
         </div>
       )}
       {departureId && <div className="content-preview-backdrop"><div className="bg-white rounded p-6 max-w-sm w-full space-y-4 shadow-xl border"><h3 className="font-bold text-base text-ink">Konfirmasi Keberangkatan</h3><p className="text-sm text-gray-600">Catat <strong>{departureId.nama}</strong> sebagai sedang tugas luar?</p><label className="block text-sm font-semibold text-gray-700" htmlFor="departure-time">Jam berangkat<input id="departure-time" type="time" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} className="mt-1 block w-full" disabled={submitting} /></label><div className="flex justify-end gap-2"><button type="button" className="secondary-button" onClick={() => setDepartureId(null)} disabled={submitting}>Batal</button><button type="button" className="primary-button !bg-blue-600 !border-blue-600" onClick={handleDeparture} disabled={submitting}>{submitting ? 'Menyimpan...' : 'Ya, Catat Berangkat'}</button></div></div></div>}
-      {scannerOpen && <div className="content-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="scanner-title"><div className="bg-white rounded p-6 max-w-md w-full space-y-4 shadow-xl border"><div className="flex justify-between items-center"><h3 id="scanner-title" className="font-bold text-base text-ink">Scan QR karyawan</h3><button type="button" className="secondary-button" onClick={() => setScannerOpen(false)} disabled={scanSubmitting}>Tutup</button></div><video ref={videoRef} className="w-full aspect-video rounded bg-black object-cover" muted playsInline />{scannerError ? <p className="text-sm text-red-600" role="alert">{scannerError}</p> : <p className="text-sm text-gray-600">{scanSubmitting ? 'Memproses scan...' : 'Arahkan kamera ke QR pengajuan tugas luar.'}</p>}</div></div>}
+      {scannerOpen && <div className="content-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="scanner-title"><div className="bg-white rounded p-6 max-w-md w-full space-y-4 shadow-xl border"><div className="flex justify-between items-center"><h3 id="scanner-title" className="font-bold text-base text-ink">Scan QR karyawan</h3><button type="button" className="secondary-button" onClick={() => setScannerOpen(false)} disabled={scanSubmitting}>Tutup</button></div><video ref={videoRef} className="w-full aspect-video rounded bg-black object-cover" muted playsInline /><input ref={imageInputRef} type="file" accept="image/*" capture="environment" onChange={handleQrImage} className="block w-full text-sm" disabled={scanSubmitting} />{scannerError ? <p className="text-sm text-red-600" role="alert">{scannerError}</p> : <p className="text-sm text-gray-600">{scanSubmitting ? 'Memproses scan...' : 'Arahkan kamera atau pilih foto QR pengajuan tugas luar.'}</p>}</div></div>}
     </div>
   );
 }
