@@ -29,6 +29,8 @@ services:
       HRIS_EMPLOYEE_NIP_COL: ${HRIS_EMPLOYEE_NIP_COL:-NIP}
       HRIS_EMPLOYEE_BIRTHDATE_COL: ${HRIS_EMPLOYEE_BIRTHDATE_COL:-BirthDate}
       HRIS_SEARCH_MIN_CHARS: ${HRIS_SEARCH_MIN_CHARS:-2}
+      TRAVEL_API_BASE_URL: ${TRAVEL_API_BASE_URL}
+      TRAVEL_API_TOKEN: ${TRAVEL_API_TOKEN}
     volumes:
       - visitorbmc_uploads:/app/uploads
     expose:
