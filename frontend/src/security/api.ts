@@ -62,6 +62,12 @@ export async function returnTravel(id: number | string, nip: string, returnTime:
   await request<undefined>('/api/travel/return', { method: 'POST', body: { id, travelId: id, nip, returnTime } });
 }
 
+export async function scanTravel(id: string, token: string): Promise<'DEPARTED' | 'RETURNED'> {
+  if (isMock()) return 'DEPARTED';
+  const result = await request<{ event: 'departed' | 'returned' }>('/api/travel/scan', { method: 'POST', body: { travelId: id, qrToken: token } });
+  return result.event === 'departed' ? 'DEPARTED' : 'RETURNED';
+}
+
 export async function departTravel(id: number | string, nip: string, departureTime: string): Promise<void> {
   if (isMock()) return;
   await request<undefined>('/api/travel/depart', { method: 'POST', body: { id, nip, departureTime } });

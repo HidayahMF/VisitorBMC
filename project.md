@@ -74,6 +74,7 @@ Base URL: `VITE_API_URL` (default `http://online.bmc.co.id:47213`). Ada juga bac
 | Endpoint | Method | Keterangan |
 |---|---|---|
 | `/api/security/overview` | GET | Proxy VisitorBMC terautentikasi cookie. Data hari ini: `{counts: {travel, izin, kembali}, travel: [], izin: [], kembali: []}` |
+| `/api/travel/scan` | POST | Proxy scan atomik ke `bmc-app-backend`. Body `{travelId, qrToken}`. Backend sumber kebenaran mencatat keberangkatan/kepulangan. |
 | `/api/travel/depart` | POST | Catat keberangkatan Security. Body `{id, nip, departureTime}`; mengubah status internal menjadi `SEDANG_TUGAS_LUAR`. |
 | `/api/travel/return` | POST | Proxy VisitorBMC terautentikasi cookie. Body `{id, nip}` — catat karyawan tugas luar sudah kembali |
 | `/api/security/report?type=&start=&end=` | GET | Proxy VisitorBMC terautentikasi cookie. `type`: `travel` \| `izin` \| `kembali`; `start`/`end`: ISO date → `{rows: [...]}` |

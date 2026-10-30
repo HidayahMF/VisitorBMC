@@ -65,10 +65,11 @@ async function activeTravels() {
   const pool = await getDbConnection();
   const result = await pool.request().query(`
     SELECT t.Id, t.NIP, t.StartDate, t.StartTime, t.EndTime, t.Tujuan, t.Keperluan,
-           cp.Id AS CheckpointId, cp.DepartureTime,
+           COALESCE(cp.Id, 0) AS CheckpointId, cp.DepartureTime AS DepartureTime,
            e.Name AS Nama
     FROM hris_Travel t
     LEFT JOIN hris_Employee e ON t.NIP = e.NIP
+
     LEFT JOIN vms.SecurityTravelCheckpoints cp ON cp.TravelId = t.Id AND cp.ReturnedDate IS NULL
     WHERE t.[Status] = 'APPROVED' AND t.EndDate IS NULL AND t.IsActive = 1
     ORDER BY t.StartDate DESC, t.InpDate DESC
@@ -100,9 +101,9 @@ async function returnedToday() {
            e.Name AS Nama
     FROM hris_Travel t
     LEFT JOIN hris_Employee e ON t.NIP = e.NIP
-    INNER JOIN vms.SecurityTravelCheckpoints cp ON cp.TravelId = t.Id
-      AND cp.ReturnedDate IS NOT NULL
-      AND CONVERT(date, cp.ReturnedDate) = CONVERT(date, GETDATE())
+        LEFT JOIN vms.SecurityTravelCheckpoints cp ON cp.TravelId = t.Id
+      WHERE t.EndDate IS NOT NULL
+      AND CONVERT(date, t.EndDate) = CONVERT(date, GETDATE())
       AND t.IsActive = 1
     ORDER BY t.EndTime DESC
   `);
@@ -158,7 +159,7 @@ export async function getReport(type: SecurityReportType, start: string, end: st
   const request = pool.request().input('start', sql.Date, start).input('end', sql.Date, end);
   if (type === 'travel') {
     const result = await request.query(`
-      SELECT t.Id, t.NIP, t.StartDate AS Tanggal, t.StartTime AS JamKeluar, cp.DepartureTime,
+      SELECT t.Id, t.NIP, t.StartDate AS Tanggal, t.StartTime AS JamKeluar, cp.DepartureTime AS DepartureTime,
              t.EndDate,
              t.EndTime AS JamKembali, t.Tujuan, t.Keperluan, e.Name AS Nama
       FROM hris_Travel t LEFT JOIN hris_Employee e ON t.NIP=e.NIP

@@ -38,6 +38,8 @@ export const env = {
   HRIS_EMPLOYEE_BIRTHDATE_COL:
     process.env.HRIS_EMPLOYEE_BIRTHDATE_COL || 'BirthDate',
   HRIS_SEARCH_MIN_CHARS: parseInt(process.env.HRIS_SEARCH_MIN_CHARS || '2', 10),
+  TRAVEL_API_BASE_URL: process.env.TRAVEL_API_BASE_URL || '',
+  TRAVEL_API_TOKEN: process.env.TRAVEL_API_TOKEN || '',
   RATE_LIMIT_WINDOW_MS: parseInt(
     process.env.RATE_LIMIT_WINDOW_MS || '900000',
     10,

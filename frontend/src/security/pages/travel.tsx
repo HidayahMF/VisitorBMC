@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import QrScanner from 'qr-scanner';
-import { departTravel, fetchOverview, returnTravel, fetchReport } from '../api';
+import { departTravel, fetchOverview, returnTravel, fetchReport, scanTravel } from '../api';
 import { type Travel, type ReportRow } from '../types';
-import { findTravelByQr } from '../qr';
+import { parseTravelQr, scanSuccessCopy } from '../qr';
 
 export function SecurityTravelPage() {
   const [items, setItems] = useState<Travel[]>([]);
@@ -17,6 +17,9 @@ export function SecurityTravelPage() {
   const [mode, setMode] = useState<'live' | 'report'>('live');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerError, setScannerError] = useState('');
+  const [scanSubmitting, setScanSubmitting] = useState(false);
+  const [scanSuccess, setScanSuccess] = useState<[string, string] | null>(null);
+  const scanBusyRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Report state
@@ -34,25 +37,41 @@ export function SecurityTravelPage() {
   }, [mode]);
 
   useEffect(() => {
-    if (!scannerOpen || !videoRef.current) return undefined;
+    if (!scannerOpen || !videoRef.current || scanSubmitting) return undefined;
     const scanner = new QrScanner(videoRef.current, (result) => {
-      const travel = findTravelByQr(typeof result === 'string' ? result : result.data, items);
-      if (!travel) {
-        setScannerError('QR tidak cocok dengan tugas luar aktif.');
+      if (scanBusyRef.current) return;
+      const payload = parseTravelQr(typeof result === 'string' ? result : result.data);
+      if (!payload) {
+        setScannerError('QR tidak valid atau sudah tidak berlaku.');
         return;
       }
-      setScannerOpen(false);
-      if (travel.status === 'AKAN_TUGAS_LUAR') { setDepartureTime(new Date().toTimeString().slice(0, 5)); setDepartureId(travel); }
-      else { setReturnTime(new Date().toTimeString().slice(0, 5)); setConfirmId({ id: travel.id, nip: travel.nip, nama: travel.nama }); }
+      scanBusyRef.current = true;
+      setScanSubmitting(true);
+      void submitScan(payload.id, payload.token);
     }, {
       preferredCamera: 'environment',
       maxScansPerSecond: 10,
       returnDetailedScanResult: true,
-      onDecodeError: (cause) => { if (cause !== QrScanner.NO_QR_CODE_FOUND) setScannerError('QR tidak dapat dibaca.'); },
+      onDecodeError: (cause) => { if (cause !== QrScanner.NO_QR_CODE_FOUND) setScannerError('QR tidak valid atau sudah tidak berlaku.'); },
     });
     scanner.start().catch((cause: unknown) => setScannerError(cause === 'Camera not found.' ? 'Kamera tidak ditemukan.' : cause instanceof DOMException && cause.name === 'NotAllowedError' ? 'Akses kamera ditolak.' : 'Kamera tidak dapat dibuka.'));
     return () => scanner.destroy();
-  }, [scannerOpen, items]);
+  }, [scannerOpen, scanSubmitting]);
+
+  async function submitScan(id: string, token: string) {
+    try {
+      const action = await scanTravel(id, token);
+      setScannerOpen(false);
+      setScanSuccess(scanSuccessCopy(action));
+      setScanSubmitting(false);
+      scanBusyRef.current = false;
+      await load();
+    } catch (cause) {
+      setScannerError(cause instanceof Error && /sudah.*kembali/i.test(cause.message) ? 'Perjalanan ini sudah tercatat kembali.' : 'QR tidak valid atau sudah tidak berlaku.');
+      setScanSubmitting(false);
+      scanBusyRef.current = false;
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -138,14 +157,13 @@ export function SecurityTravelPage() {
           >
             Laporan Riwayat
           </button>
-          {mode === 'live' && <button type="button" className="primary-button" onClick={() => { setScannerError(''); setScannerOpen(true); }}>
-            Scan QR
-          </button>}
         </div>
       </div>
+      {mode === 'live' && <div className="travel-scan-action"><button type="button" className="primary-button" disabled={scanSubmitting} onClick={() => { setScanSuccess(null); setScannerError(''); setScanSubmitting(false); scanBusyRef.current = false; setScannerOpen(true); }}>Scan QR</button></div>}
 
       {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{error}</div>}
       {success && <div className="bg-green-50 text-green-700 border border-green-200 p-3 rounded mb-4 text-sm" role="status">{success}</div>}
+      {scanSuccess && <div className="bg-green-50 text-green-700 border border-green-200 p-4 rounded mb-4" role="status"><strong>{scanSuccess[0]}</strong><p>{scanSuccess[1]}</p></div>}
 
       {mode === 'live' ? (
         loading ? (
@@ -155,8 +173,8 @@ export function SecurityTravelPage() {
             <p>Tidak ada karyawan yang sedang tugas luar saat ini.</p>
           </div>
         ) : (
-          <div className="companies-table-wrap">
-            <table className="companies-table">
+          <div className="companies-table-wrap security-travel-table-wrap">
+            <table className="companies-table security-travel-table">
               <thead>
                 <tr>
                   <th rowSpan={2} style={{ width: '20%' }}>Status</th>
@@ -243,8 +261,8 @@ export function SecurityTravelPage() {
               <p>Tidak ada data laporan untuk rentang tanggal ini.</p>
             </div>
           ) : (
-            <div className="companies-table-wrap">
-              <table className="companies-table">
+            <div className="companies-table-wrap security-travel-table-wrap">
+              <table className="companies-table security-travel-table">
                 <thead>
                   <tr>
                     <th rowSpan={2} style={{ width: '12%' }}>Tanggal</th>
@@ -312,7 +330,7 @@ export function SecurityTravelPage() {
         </div>
       )}
       {departureId && <div className="content-preview-backdrop"><div className="bg-white rounded p-6 max-w-sm w-full space-y-4 shadow-xl border"><h3 className="font-bold text-base text-ink">Konfirmasi Keberangkatan</h3><p className="text-sm text-gray-600">Catat <strong>{departureId.nama}</strong> sebagai sedang tugas luar?</p><label className="block text-sm font-semibold text-gray-700" htmlFor="departure-time">Jam berangkat<input id="departure-time" type="time" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} className="mt-1 block w-full" disabled={submitting} /></label><div className="flex justify-end gap-2"><button type="button" className="secondary-button" onClick={() => setDepartureId(null)} disabled={submitting}>Batal</button><button type="button" className="primary-button !bg-blue-600 !border-blue-600" onClick={handleDeparture} disabled={submitting}>{submitting ? 'Menyimpan...' : 'Ya, Catat Berangkat'}</button></div></div></div>}
-      {scannerOpen && <div className="content-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="scanner-title"><div className="bg-white rounded p-6 max-w-md w-full space-y-4 shadow-xl border"><div className="flex justify-between items-center"><h3 id="scanner-title" className="font-bold text-base text-ink">Scan QR karyawan</h3><button type="button" className="secondary-button" onClick={() => setScannerOpen(false)}>Tutup</button></div><video ref={videoRef} className="w-full aspect-video rounded bg-black object-cover" muted playsInline />{scannerError ? <p className="text-sm text-red-600" role="alert">{scannerError}</p> : <p className="text-sm text-gray-600">Arahkan kamera ke QR pengajuan tugas luar.</p>}</div></div>}
+      {scannerOpen && <div className="content-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="scanner-title"><div className="bg-white rounded p-6 max-w-md w-full space-y-4 shadow-xl border"><div className="flex justify-between items-center"><h3 id="scanner-title" className="font-bold text-base text-ink">Scan QR karyawan</h3><button type="button" className="secondary-button" onClick={() => setScannerOpen(false)} disabled={scanSubmitting}>Tutup</button></div><video ref={videoRef} className="w-full aspect-video rounded bg-black object-cover" muted playsInline />{scannerError ? <p className="text-sm text-red-600" role="alert">{scannerError}</p> : <p className="text-sm text-gray-600">{scanSubmitting ? 'Memproses scan...' : 'Arahkan kamera ke QR pengajuan tugas luar.'}</p>}</div></div>}
     </div>
   );
 }
