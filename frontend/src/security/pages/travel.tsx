@@ -67,6 +67,7 @@ export function SecurityTravelPage() {
       scanBusyRef.current = false;
       await load();
     } catch (cause) {
+      console.error('[travel-scan] gagal', { travelId: id, message: cause instanceof Error ? cause.message : String(cause) });
       setScannerError(cause instanceof Error && /sudah.*kembali/i.test(cause.message) ? 'Perjalanan ini sudah tercatat kembali.' : 'QR tidak valid atau sudah tidak berlaku.');
       setScanSubmitting(false);
       scanBusyRef.current = false;

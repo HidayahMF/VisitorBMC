@@ -24,7 +24,10 @@ export async function scanTravelAtHr(travelId: string, qrToken: string): Promise
     body: JSON.stringify({ travelId, qrToken }),
   });
   const body = await response.json().catch(() => null) as { error?: string; message?: string; status?: string; event?: TravelScanEvent; speech?: string; success?: boolean } | null;
-  if (!response.ok) throw new TravelScanError(body?.error || body?.message || 'Scan QR gagal.', response.status);
+  if (!response.ok) {
+    console.error('[travel-scan] upstream gagal', { status: response.status, travelId, error: body?.error || body?.message });
+    throw new TravelScanError(body?.error || body?.message || 'Scan QR gagal.', response.status);
+  }
   if (body?.success !== true || (body.event !== 'departed' && body.event !== 'returned') || typeof body.message !== 'string' || typeof body.speech !== 'string') throw new Error('Respons scan QR tidak valid.');
   return body as TravelScanResponse;
 }
