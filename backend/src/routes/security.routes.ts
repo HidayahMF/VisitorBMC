@@ -2,25 +2,12 @@ import { type Request, type Response, type NextFunction } from 'express';
 import { AppError } from '../middleware/errorHandler';
 import { getOverview, getReport, markTravelDeparted, markTravelReturned, type SecurityReportType } from '../services/security.service';
 import { type AuthenticatedRequest } from '../middleware/authenticate';
-import { isTravelScanInput, scanTravelAtHr, TravelScanError } from '../services/travel-scan.service';
 
 export async function overview(_req: Request, res: Response, next: NextFunction) {
   try {
     res.json(await getOverview());
   } catch (error) {
     next(error);
-  }
-}
-
-export async function scanTravelProxy(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  try {
-    const travelId = typeof req.body?.travelId === 'string' ? req.body.travelId.trim() : '';
-    const qrToken = typeof req.body?.qrToken === 'string' ? req.body.qrToken.trim() : '';
-    if (!isTravelScanInput(travelId, qrToken)) throw new AppError('QR tidak valid atau sudah tidak berlaku.', 400);
-    const result = await scanTravelAtHr(travelId, qrToken);
-    res.json(result);
-  } catch (error) {
-    next(error instanceof TravelScanError ? new AppError(error.message, error.statusCode) : error);
   }
 }
 

@@ -9,7 +9,6 @@ export interface Travel {
   jamKembali?: string | null;
   status?: 'AKAN_TUGAS_LUAR' | 'SEDANG_TUGAS_LUAR';
   departureTime?: string | null;
-  qrToken?: string;
 }
 
 export interface Izin {

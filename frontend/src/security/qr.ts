@@ -1,28 +1,35 @@
 export interface TravelQrPayload {
   id: string;
-  token: string;
+}
+
+const TRAVEL_ID_RE = /^[A-Za-z0-9._-]{1,50}$/;
+
+function validTravelId(value: unknown): string | null {
+  const id = typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
+  return TRAVEL_ID_RE.test(id) ? id : null;
 }
 
 export function parseTravelQr(value: string): TravelQrPayload | null {
   if (typeof value !== 'string' || !value.trim()) return null;
+  const raw = value.trim();
   try {
-    const data: unknown = JSON.parse(value);
-    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-    const payload = data as Record<string, unknown>;
-    const id = typeof payload.id === 'string' ? payload.id.trim() : '';
-    const token = typeof payload.token === 'string' ? payload.token.trim() : '';
-    return /^[A-Fa-f0-9]{48}$/.test(token) && /^[A-Za-z0-9._-]{1,50}$/.test(id) ? { id, token } : null;
-  } catch {
-    try {
-      const url = new URL(value.trim());
-      const match = url.pathname.match(/^\/travel\/qr\/([^/]+)\/([a-f0-9]{48})$/i);
-      if (!match) return null;
-      const id = decodeURIComponent(match[1]);
-      const token = match[2];
-      return /^[A-Za-z0-9._-]{1,50}$/.test(id) ? { id, token } : null;
-    } catch {
-      return null;
+    const data: unknown = JSON.parse(raw);
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const payload = data as Record<string, unknown>;
+      const id = validTravelId(payload.id ?? payload.travelId);
+      return id ? { id } : null;
     }
+  } catch {
+    // Bukan JSON; coba URL atau ID mentah.
+  }
+  try {
+    const url = new URL(raw);
+    const match = url.pathname.match(/^\/travel\/qr\/([^/]+)/i);
+    const id = validTravelId(match ? decodeURIComponent(match[1]) : url.searchParams.get('travelId'));
+    return id ? { id } : null;
+  } catch {
+    const id = validTravelId(raw);
+    return id ? { id } : null;
   }
 }
 

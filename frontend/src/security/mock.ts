@@ -26,9 +26,9 @@ const NOON_SLOT = hhmm(140);
 
 export function getMockOverview(): Overview {
   const travel = [
-    { id: 201, nip: '1021', nama: 'Andi Saputra', tujuan: 'PT Supplier Timur', keperluan: 'Pengambilan material produksi', jamKeluar: EARLY_SLOT, qrToken: 'mock-token-201' },
-    { id: 202, nip: '1044', nama: 'Budi Hartono', tujuan: 'Kantor Cabang Surabaya', keperluan: 'Meeting proyek', jamKeluar: NOW_SLOT, qrToken: 'mock-token-202' },
-    { id: 203, nip: '1090', nama: 'Citra Dewi', tujuan: 'Bank Mandiri', keperluan: 'Pengurusan keuangan', jamKeluar: NOON_SLOT, qrToken: 'mock-token-203' },
+    { id: 201, nip: '1021', nama: 'Andi Saputra', tujuan: 'PT Supplier Timur', keperluan: 'Pengambilan material produksi', jamKeluar: EARLY_SLOT },
+    { id: 202, nip: '1044', nama: 'Budi Hartono', tujuan: 'Kantor Cabang Surabaya', keperluan: 'Meeting proyek', jamKeluar: NOW_SLOT },
+    { id: 203, nip: '1090', nama: 'Citra Dewi', tujuan: 'Bank Mandiri', keperluan: 'Pengurusan keuangan', jamKeluar: NOON_SLOT },
   ] as const;
 
   const izin = [
