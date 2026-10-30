@@ -62,10 +62,10 @@ export async function returnTravel(id: number | string, nip: string, returnTime:
   await request<undefined>('/api/travel/return', { method: 'POST', body: { id, travelId: id, nip, returnTime } });
 }
 
-export async function scanTravel(id: string, departureTime: string): Promise<'DEPARTED'> {
+export async function scanTravel(id: string, time: string): Promise<'DEPARTED' | 'RETURNED'> {
   if (isMock()) return 'DEPARTED';
-  await request<undefined>('/api/travel/depart', { method: 'POST', body: { id, departureTime } });
-  return 'DEPARTED';
+  const result = await request<{ action: 'DEPARTED' | 'RETURNED' }>('/api/travel/scan', { method: 'POST', body: { id, time } });
+  return result.action;
 }
 
 export async function departTravel(id: number | string, nip: string, departureTime: string): Promise<void> {

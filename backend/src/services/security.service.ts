@@ -1,6 +1,11 @@
 import { getDbConnection, sql } from '../config/database';
 
 export type SecurityReportType = 'travel' | 'izin' | 'kembali';
+export type ScanAction = 'DEPARTED' | 'RETURNED';
+
+export function scanAction(hasActiveCheckpoint: boolean): ScanAction {
+  return hasActiveCheckpoint ? 'RETURNED' : 'DEPARTED';
+}
 
 function pad(value: number): string {
   return String(value).padStart(2, '0');
@@ -101,11 +106,11 @@ async function returnedToday() {
            e.Name AS Nama
     FROM hris_Travel t
     LEFT JOIN hris_Employee e ON t.NIP = e.NIP
-        LEFT JOIN vms.SecurityTravelCheckpoints cp ON cp.TravelId = t.Id
-      WHERE t.EndDate IS NOT NULL
-      AND CONVERT(date, t.EndDate) = CONVERT(date, GETDATE())
+    INNER JOIN vms.SecurityTravelCheckpoints cp ON cp.TravelId = t.Id
+      WHERE cp.ReturnedDate IS NOT NULL
+      AND CONVERT(date, cp.ReturnedDate) = CONVERT(date, GETDATE())
       AND t.IsActive = 1
-    ORDER BY t.EndTime DESC
+    ORDER BY cp.ReturnedTime DESC
   `);
   return result.recordset.map(mapKembali);
 }
@@ -133,6 +138,19 @@ export async function markTravelDeparted(id: string, nip: string, departureTime:
       SELECT @@ROWCOUNT AS Affected;
     `);
   return Number(result.recordset[0]?.Affected ?? 0) > 0;
+}
+
+export async function getActiveTravelCheckpoint(id: string) {
+  const pool = await getDbConnection();
+  const result = await pool.request()
+    .input('id', sql.VarChar(50), id)
+    .query(`
+      SELECT TOP 1 TravelId, NIP
+      FROM vms.SecurityTravelCheckpoints
+      WHERE TravelId = @id AND ReturnedDate IS NULL
+      ORDER BY Id DESC;
+    `);
+  return result.recordset[0] as { TravelId: string; NIP: string } | undefined;
 }
 
 export async function markTravelReturned(id: string | null, nip: string, returnTime: string, userId: number) {

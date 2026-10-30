@@ -75,6 +75,7 @@ API Security memakai same-origin `/api`; development Vite mem-proxy ke backend l
 |---|---|---|
 | `/api/security/overview` | GET | Proxy VisitorBMC terautentikasi cookie. Data hari ini: `{counts: {travel, izin, kembali}, travel: [], izin: [], kembali: []}` |
 | `/api/travel/depart` | POST | Catat keberangkatan Security. Body `{id, nip, departureTime}`; mengubah status internal menjadi `SEDANG_TUGAS_LUAR`. |
+| `/api/travel/scan` | POST | Scan QR toggle. Body `{id, time}`; mencatat `DEPARTED` bila belum ada checkpoint aktif, atau `RETURNED` bila sudah berangkat. |
 | `/api/travel/return` | POST | Proxy VisitorBMC terautentikasi cookie. Body `{id, nip}` — catat karyawan tugas luar sudah kembali |
 | `/api/security/report?type=&start=&end=` | GET | Proxy VisitorBMC terautentikasi cookie. `type`: `travel` \| `izin` \| `kembali`; `start`/`end`: ISO date → `{rows: [...]}` |
 | `/api/safety-inductions/staff-complete/:visitId` | POST | Staff `ADMIN`/`SECURITY` menandai seluruh visitor yang masih memerlukan induction sebagai selesai dan mencatat user staff sebagai pembuat |

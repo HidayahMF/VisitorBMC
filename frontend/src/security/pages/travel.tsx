@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import QrScanner from 'qr-scanner';
 import { departTravel, fetchOverview, returnTravel, fetchReport, scanTravel } from '../api';
 import { type Travel, type ReportRow } from '../types';
-import { parseTravelQr, scanSuccessCopy } from '../qr';
+import { parseTravelQr, scanSuccessCopy, type ScanAction } from '../qr';
 
 export function SecurityTravelPage() {
   const [items, setItems] = useState<Travel[]>([]);
@@ -20,6 +20,7 @@ export function SecurityTravelPage() {
   const [scanSubmitting, setScanSubmitting] = useState(false);
   const [scanSuccess, setScanSuccess] = useState<[string, string] | null>(null);
   const [scannedTravelId, setScannedTravelId] = useState<string | null>(null);
+  const [scanAction, setScanAction] = useState<ScanAction>('DEPARTED');
   const scanBusyRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +54,7 @@ export function SecurityTravelPage() {
       }
       scanBusyRef.current = true;
       setScannerOpen(false);
+      setScanAction(items.some((item) => String(item.id) === payload.id && item.status === 'SEDANG_TUGAS_LUAR') ? 'RETURNED' : 'DEPARTED');
       setScannedTravelId(payload.id);
       setScanSubmitting(false);
     }, {
@@ -74,6 +76,7 @@ export function SecurityTravelPage() {
       const payload = parseTravelQr(result.data);
       if (!payload) throw new Error('QR tidak valid atau sudah tidak berlaku.');
       setScannerOpen(false);
+      setScanAction(items.some((item) => String(item.id) === payload.id && item.status === 'SEDANG_TUGAS_LUAR') ? 'RETURNED' : 'DEPARTED');
       setScannedTravelId(payload.id);
       setScanSubmitting(false);
     } catch (cause) {
@@ -355,7 +358,7 @@ export function SecurityTravelPage() {
         </div>
       )}
       {departureId && <div className="content-preview-backdrop"><div className="bg-white rounded p-6 max-w-sm w-full space-y-4 shadow-xl border"><h3 className="font-bold text-base text-ink">Konfirmasi Keberangkatan</h3><p className="text-sm text-gray-600">Catat <strong>{departureId.nama}</strong> sebagai sedang tugas luar?</p><label className="block text-sm font-semibold text-gray-700" htmlFor="departure-time">Jam berangkat<input id="departure-time" type="time" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} className="mt-1 block w-full" disabled={submitting} /></label><div className="flex justify-end gap-2"><button type="button" className="secondary-button" onClick={() => setDepartureId(null)} disabled={submitting}>Batal</button><button type="button" className="primary-button !bg-blue-600 !border-blue-600" onClick={handleDeparture} disabled={submitting}>{submitting ? 'Menyimpan...' : 'Ya, Catat Berangkat'}</button></div></div></div>}
-      {scannedTravelId && <div className="content-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="departure-scan-title"><div className="bg-white rounded p-6 max-w-sm w-full space-y-4 shadow-xl border"><h3 id="departure-scan-title" className="font-bold text-base text-ink">Konfirmasi Keberangkatan</h3><p className="text-sm text-gray-600">QR terbaca. Pilih jam keberangkatan.</p><label className="block text-sm font-semibold text-gray-700" htmlFor="scan-departure-time">Jam berangkat<input id="scan-departure-time" type="time" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} className="mt-1 block w-full" disabled={scanSubmitting} /></label><div className="flex justify-end gap-2"><button type="button" className="secondary-button" onClick={() => { setScannedTravelId(null); scanBusyRef.current = false; }} disabled={scanSubmitting}>Batal</button><button type="button" className="primary-button" onClick={() => { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(departureTime)) { setError('Jam keberangkatan harus berformat HH:MM.'); return; } setScanSubmitting(true); void submitScan(scannedTravelId, departureTime); }} disabled={scanSubmitting}>{scanSubmitting ? 'Menyimpan...' : 'Catat Berangkat'}</button></div></div></div>}
+      {scannedTravelId && <div className="content-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="departure-scan-title"><div className="bg-white rounded p-6 max-w-sm w-full space-y-4 shadow-xl border"><h3 id="departure-scan-title" className="font-bold text-base text-ink">{scanAction === 'RETURNED' ? 'Konfirmasi Kepulangan' : 'Konfirmasi Keberangkatan'}</h3><p className="text-sm text-gray-600">QR terbaca. {scanAction === 'RETURNED' ? 'Pilih jam kembali.' : 'Pilih jam keberangkatan.'}</p><label className="block text-sm font-semibold text-gray-700" htmlFor="scan-departure-time">{scanAction === 'RETURNED' ? 'Jam kembali' : 'Jam berangkat'}<input id="scan-departure-time" type="time" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} className="mt-1 block w-full" disabled={scanSubmitting} /></label><div className="flex justify-end gap-2"><button type="button" className="secondary-button" onClick={() => { setScannedTravelId(null); scanBusyRef.current = false; }} disabled={scanSubmitting}>Batal</button><button type="button" className="primary-button" onClick={() => { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(departureTime)) { setError('Jam pencatatan harus berformat HH:MM.'); return; } setScanSubmitting(true); void submitScan(scannedTravelId, departureTime); }} disabled={scanSubmitting}>{scanSubmitting ? 'Menyimpan...' : scanAction === 'RETURNED' ? 'Catat Kembali' : 'Catat Berangkat'}</button></div></div></div>}
       {scannerOpen && <div className="content-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="scanner-title"><div className="bg-white rounded p-6 max-w-md w-full space-y-4 shadow-xl border"><div className="flex justify-between items-center"><h3 id="scanner-title" className="font-bold text-base text-ink">Scan QR karyawan</h3><button type="button" className="secondary-button" onClick={() => setScannerOpen(false)} disabled={scanSubmitting}>Tutup</button></div><video ref={videoRef} className="w-full aspect-video rounded bg-black object-cover" muted playsInline /><input ref={imageInputRef} type="file" accept="image/*" capture="environment" onChange={handleQrImage} className="block w-full text-sm" disabled={scanSubmitting} />{scannerError ? <p className="text-sm text-red-600" role="alert">{scannerError}</p> : <p className="text-sm text-gray-600">{scanSubmitting ? 'Memproses scan...' : 'Arahkan kamera atau pilih foto QR pengajuan tugas luar.'}</p>}</div></div>}
     </div>
   );

@@ -44,6 +44,7 @@ app.get('/api/auth/me', authenticate, me);
 app.get('/api/security/overview', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), securityRoutes.overview);
 app.post('/api/travel/return', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), securityRoutes.returnTravel);
 app.post('/api/travel/depart', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), securityRoutes.departTravel);
+app.post('/api/travel/scan', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), securityRoutes.scanTravel);
 app.get('/api/security/report', authenticate, authorize('ADMIN', 'SECURITY', 'MONITORING'), securityRoutes.report);
 
 app.get('/api/companies', authenticate, companiesRoutes.list);

@@ -1,6 +1,6 @@
 import { type Request, type Response, type NextFunction } from 'express';
 import { AppError } from '../middleware/errorHandler';
-import { getOverview, getReport, markTravelDeparted, markTravelReturned, type SecurityReportType } from '../services/security.service';
+import { getActiveTravelCheckpoint, getOverview, getReport, markTravelDeparted, markTravelReturned, scanAction, type SecurityReportType } from '../services/security.service';
 import { type AuthenticatedRequest } from '../middleware/authenticate';
 
 export async function overview(_req: Request, res: Response, next: NextFunction) {
@@ -34,6 +34,25 @@ export async function departTravel(req: AuthenticatedRequest, res: Response, nex
     if (!id || !/^([01]\d|2[0-3]):[0-5]\d$/.test(departureTime)) throw new AppError('ID dan jam keberangkatan wajib diisi.', 400);
     if (!await markTravelDeparted(id, nip, departureTime, req.user!.userId)) throw new AppError('Tugas luar tidak ditemukan atau sudah dicatat berangkat.', 409);
     res.json({ message: 'Keberangkatan berhasil dicatat.' });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function scanTravel(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    const id = String(req.body?.id ?? req.body?.travelId ?? '').trim();
+    const time = String(req.body?.time ?? '');
+    if (!/^[A-Za-z0-9._-]{1,50}$/.test(id) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new AppError('ID dan jam scan wajib diisi.', 400);
+    const checkpoint = await getActiveTravelCheckpoint(id);
+    const action = scanAction(Boolean(checkpoint));
+    if (action === 'RETURNED') {
+      if (!await markTravelReturned(id, checkpoint!.NIP, time, req.user!.userId)) throw new AppError('Kepulangan gagal dicatat.', 409);
+      res.json({ action });
+      return;
+    }
+    if (!await markTravelDeparted(id, '', time, req.user!.userId)) throw new AppError('Tugas luar tidak ditemukan atau sudah selesai.', 409);
+    res.json({ action });
   } catch (error) {
     next(error);
   }
