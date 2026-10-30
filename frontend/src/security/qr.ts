@@ -42,5 +42,5 @@ export interface ScanResult {
 export function scanSuccessCopy(action: ScanAction): [string, string] {
   return action === 'DEPARTED'
     ? ['Berhasil dicatat berangkat.', 'Selamat melakukan perjalanan, hati-hati di jalan.']
-    : ['Berhasil dicatat kembali.', 'Terima kasih, perjalanan Anda selesai.'];
+    : ['Berhasil dicatat kembali.', 'Tugas luar selesai. Selamat kembali ke kantor.'];
 }

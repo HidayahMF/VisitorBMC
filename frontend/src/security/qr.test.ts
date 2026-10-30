@@ -21,6 +21,6 @@ describe('parseTravelQr', () => {
 describe('scanSuccessCopy', () => {
   it('menghasilkan pesan keberangkatan dan kepulangan', () => {
     expect(scanSuccessCopy('DEPARTED')).toEqual(['Berhasil dicatat berangkat.', 'Selamat melakukan perjalanan, hati-hati di jalan.']);
-    expect(scanSuccessCopy('RETURNED')).toEqual(['Berhasil dicatat kembali.', 'Terima kasih, perjalanan Anda selesai.']);
+    expect(scanSuccessCopy('RETURNED')).toEqual(['Berhasil dicatat kembali.', 'Tugas luar selesai. Selamat kembali ke kantor.']);
   });
 });
