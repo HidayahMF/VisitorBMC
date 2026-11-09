@@ -17,6 +17,7 @@ export interface Travel {
   pengemudi?: string;
   qrToken?: string;
   groupStatus?: string;
+  canDepart?: boolean;
 }
 
 export interface Izin {

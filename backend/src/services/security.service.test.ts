@@ -14,6 +14,22 @@ describe('security travel flow', () => {
     });
   });
 
+  it('hanya mengizinkan keberangkatan group setelah approval kendaraan', () => {
+    const [waiting, approved] = mapGroupTravelRows([
+      { GroupCode: 'WAIT-01', VersionNo: 1, ExitDate: '2026-11-09', ExitTime: '08:00', Tujuan: 'Gudang', Tugas: 'Kirim', MemberNIP: '1001', MemberName: 'Andi', MemberStatus: 'ACTIVE', VehicleApprovalStatus: 2 },
+      { GroupCode: 'OK-01', VersionNo: 1, ExitDate: '2026-11-09', ExitTime: '08:00', Tujuan: 'Gudang', Tugas: 'Kirim', MemberNIP: '1001', MemberName: 'Andi', MemberStatus: 'ACTIVE', VehicleApprovalStatus: 3 },
+    ]);
+
+    expect(waiting.canDepart).toBe(false);
+    expect(approved.canDepart).toBe(true);
+  });
+
+  it('tidak memetakan group yang sudah kembali', () => {
+    expect(mapGroupTravelRows([
+      { GroupCode: 'DONE-01', VersionNo: 1, ExitDate: '2026-11-09', ExitTime: '08:00', DepartureAt: '2026-11-09T08:10:00', ReturnedDate: '2026-11-09', MemberNIP: '1001', MemberName: 'Andi', MemberStatus: 'ACTIVE' },
+    ])).toEqual([]);
+  });
+
   it('memetakan group dari versi terbaru dan hanya member aktif tanpa duplikasi', () => {
     const rows = mapGroupTravelRows([
       { GroupCode: 'GRP-01', VersionNo: 1, ExitDate: '2026-11-09', ExitTime: '08:00', Tujuan: 'Gudang A', Tugas: 'Versi lama', VehicleType: 'CAR', VehiclePlate: 'B 1', GroupStatus: 'APPROVED', VersionStatus: 'APPROVED', MemberNIP: '1001', MemberName: 'Lama', MemberStatus: 'ACTIVE' },

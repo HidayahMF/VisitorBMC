@@ -69,6 +69,7 @@ export function mapGroupTravelRows(rows: Record<string, unknown>[]) {
     status: 'AKAN_TUGAS_LUAR' | 'SEDANG_TUGAS_LUAR';
     groupStatus: string;
     departureTime: string | null;
+    canDepart: boolean;
     jenisTugas: 'GROUP';
   }>();
 
@@ -76,7 +77,7 @@ export function mapGroupTravelRows(rows: Record<string, unknown>[]) {
     const groupCode = trim(field(row, 'GroupCode'));
     const memberNip = trim(field(row, 'MemberNIP'));
     const memberStatus = trim(field(row, 'MemberStatus'));
-    if (!groupCode || !memberNip || memberStatus !== 'ACTIVE') continue;
+    if (!groupCode || !memberNip || memberStatus !== 'ACTIVE' || field(row, 'ReturnedDate') != null) continue;
 
     const versionNo = Number(field(row, 'VersionNo'));
     if (latestVersions.get(groupCode) !== versionNo) continue;
@@ -90,7 +91,7 @@ export function mapGroupTravelRows(rows: Record<string, unknown>[]) {
       continue;
     }
 
-    const departed = Boolean(field(row, 'DepartureAt'));
+    const departed = Boolean(field(row, 'DepartureAt') || field(row, 'GroupCheckpointDepartureTime'));
     groups.set(groupCode, {
       id: groupCode,
       groupCode,
@@ -108,7 +109,8 @@ export function mapGroupTravelRows(rows: Record<string, unknown>[]) {
       qrToken: trim(field(row, 'QrToken')),
       status: departed ? 'SEDANG_TUGAS_LUAR' : 'AKAN_TUGAS_LUAR',
       groupStatus: trim(field(row, 'GroupStatus')) || trim(field(row, 'VersionStatus')),
-      departureTime: formatTime(field(row, 'DepartureAt')),
+      departureTime: formatTime(field(row, 'GroupCheckpointDepartureTime') ?? field(row, 'DepartureAt')),
+      canDepart: Number(field(row, 'VehicleApprovalStatus')) === 3,
       jenisTugas: 'GROUP',
     });
   }
@@ -150,6 +152,7 @@ async function activeTravels() {
     LEFT JOIN hris_Employee e ON t.NIP = e.NIP
     LEFT JOIN vms.SecurityTravelCheckpoints cp ON cp.TravelId = t.Id AND cp.ReturnedDate IS NULL
     WHERE t.[Status] = 'APPROVED' AND t.EndDate IS NULL AND t.IsActive = 1
+      AND CONVERT(date, t.StartDate) = CONVERT(date, GETDATE())
     ORDER BY t.StartDate DESC, t.InpDate DESC
   `);
   const groupResult = await pool.request().query(`
@@ -159,14 +162,19 @@ async function activeTravels() {
     )
     SELECT g.GroupCode, g.Status AS GroupStatus, v.VersionNo, v.ExitDate, v.ExitTime,
            v.Tujuan, v.Tugas, v.VehicleType, v.VehiclePlate, v.Status AS VersionStatus,
-           v.QrToken, v.DepartureAt, v.DriverNIP, v.DriverName,
+           v.QrToken, v.DepartureAt, cp.DepartureTime AS GroupCheckpointDepartureTime, cp.ReturnedDate,
+           v.DriverNIP, v.DriverName,
            m.NIP AS MemberNIP, e.Name AS MemberName, m.Status AS MemberStatus,
-           v.VersionNo AS CurrentVersionNo
+           v.VersionNo AS CurrentVersionNo,
+           COALESCE((SELECT MAX(a.StatusId) FROM hris_Travel_Group_Approval a WHERE a.GroupCode = v.GroupCode AND a.VersionNo = v.VersionNo AND UPPER(a.ApprovalType) IN ('VEHICLE', 'KENDARAAN')), 0) AS VehicleApprovalStatus
     FROM hris_Travel_Group g
     INNER JOIN LatestVersion v ON v.GroupCode = g.GroupCode AND v.rn = 1
     INNER JOIN hris_Travel_Group_Member m ON m.GroupCode = v.GroupCode AND m.VersionNo = v.VersionNo AND m.Status = 'ACTIVE'
     LEFT JOIN hris_Employee e ON e.NIP = m.NIP
+    OUTER APPLY (SELECT TOP 1 c.DepartureTime AS DepartureTime, c.ReturnedDate FROM vms.SecurityTravelCheckpoints c WHERE c.TravelId = g.GroupCode ORDER BY c.Id DESC) cp
     WHERE g.Status NOT IN ('CANCELLED', 'COMPLETED') AND v.Status NOT IN ('CANCELLED', 'COMPLETED')
+      AND cp.ReturnedDate IS NULL
+      AND CONVERT(date, v.ExitDate) = CONVERT(date, GETDATE())
     ORDER BY v.ExitDate DESC, v.ExitTime ASC, g.GroupCode, m.NIP
   `);
   return [...result.recordset.map(mapTravel), ...mapGroupTravelRows(groupResult.recordset)];
@@ -217,8 +225,43 @@ export async function markTravelDeparted(id: string, nip: string, departureTime:
     .input('id', sql.VarChar(50), id)
     .input('nip', sql.VarChar(50), nip.trim())
     .input('departureTime', sql.VarChar(5), departureTime)
-    .input('userId', sql.Int, userId)
+    .input('userId', sql.Int, userId);
   const result = await request.query(`
+    IF EXISTS (
+      SELECT 1
+      FROM hris_Travel_Group g
+      INNER JOIN hris_Travel_Group_Version v ON v.GroupCode = g.GroupCode
+      WHERE g.GroupCode = @id
+        AND NOT EXISTS (SELECT 1 FROM hris_Travel_Group_Version newer WHERE newer.GroupCode = v.GroupCode AND newer.VersionNo > v.VersionNo)
+    )
+    BEGIN
+      UPDATE v
+      SET DepartureAt = CONVERT(datetime2, CONVERT(varchar(10), GETDATE(), 120) + ' ' + @departureTime),
+          Status = CASE WHEN v.Status = 'APPROVED' THEN 'DEPARTED' ELSE v.Status END
+      FROM hris_Travel_Group_Version v
+      INNER JOIN hris_Travel_Group g ON g.GroupCode = v.GroupCode
+      WHERE v.GroupCode = @id
+        AND NOT EXISTS (SELECT 1 FROM hris_Travel_Group_Version newer WHERE newer.GroupCode = v.GroupCode AND newer.VersionNo > v.VersionNo)
+        AND g.Status NOT IN ('CANCELLED', 'COMPLETED')
+        AND v.Status NOT IN ('CANCELLED', 'COMPLETED')
+        AND v.DepartureAt IS NULL
+        AND EXISTS (
+          SELECT 1 FROM hris_Travel_Group_Approval a
+          WHERE a.GroupCode = v.GroupCode AND a.VersionNo = v.VersionNo
+            AND UPPER(a.ApprovalType) IN ('VEHICLE', 'KENDARAAN') AND a.StatusId = 3
+        );
+      INSERT INTO vms.SecurityTravelCheckpoints (TravelId, NIP, DepartureTime, DepartedBy)
+      SELECT @id, '', CONVERT(time, @departureTime), @userId
+      WHERE EXISTS (
+        SELECT 1 FROM hris_Travel_Group_Version v
+        WHERE v.GroupCode = @id AND v.DepartureAt IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM hris_Travel_Group_Version newer WHERE newer.GroupCode = v.GroupCode AND newer.VersionNo > v.VersionNo)
+      )
+      AND NOT EXISTS (SELECT 1 FROM vms.SecurityTravelCheckpoints WHERE TravelId = @id AND ReturnedDate IS NULL);
+      SELECT @@ROWCOUNT AS Affected;
+    END
+    ELSE
+    BEGIN
       INSERT INTO vms.SecurityTravelCheckpoints (TravelId, NIP, DepartureTime, DepartedBy)
       SELECT Id, NIP, CONVERT(time, @departureTime), @userId
       FROM hris_Travel
@@ -226,7 +269,8 @@ export async function markTravelDeparted(id: string, nip: string, departureTime:
         AND [Status] = 'APPROVED' AND EndDate IS NULL AND IsActive = 1
         AND NOT EXISTS (SELECT 1 FROM vms.SecurityTravelCheckpoints WHERE TravelId = hris_Travel.Id AND ReturnedDate IS NULL);
       SELECT @@ROWCOUNT AS Affected;
-    `);
+    END
+  `);
   return Number(result.recordset[0]?.Affected ?? 0) > 0;
 }
 
@@ -251,13 +295,46 @@ export async function markTravelReturned(id: string | null, nip: string, returnT
     .input('returnTime', sql.VarChar(5), returnTime)
     .input('userId', sql.Int, userId)
     .query(`
-      UPDATE cp
-      SET ReturnedDate = CONVERT(date, GETDATE()), ReturnedTime = CONVERT(time, @returnTime),
-          ReturnedBy = @userId, UpdatedAt = SYSUTCDATETIME()
-      FROM vms.SecurityTravelCheckpoints cp
-      WHERE cp.ReturnedDate IS NULL
-        AND (@id IS NOT NULL AND cp.TravelId = @id OR @id IS NULL AND cp.NIP = @nip);
-      SELECT @@ROWCOUNT AS Affected;
+      DECLARE @affected INT = 0;
+      IF EXISTS (SELECT 1 FROM hris_Travel_Group WHERE GroupCode = @id)
+      BEGIN
+        UPDATE cp
+        SET ReturnedDate = CONVERT(date, GETDATE()), ReturnedTime = CONVERT(time, @returnTime),
+            ReturnedBy = @userId, UpdatedAt = SYSUTCDATETIME()
+        FROM vms.SecurityTravelCheckpoints cp
+        WHERE cp.TravelId = @id AND cp.ReturnedDate IS NULL;
+        SET @affected = @@ROWCOUNT;
+
+        IF @affected = 0
+        BEGIN
+          INSERT INTO vms.SecurityTravelCheckpoints
+            (TravelId, NIP, DepartureDate, DepartureTime, ReturnedDate, ReturnedTime, DepartedBy, ReturnedBy, UpdatedAt)
+          SELECT TOP 1 v.GroupCode, '', CONVERT(date, v.DepartureAt), CONVERT(time, v.DepartureAt),
+                 CONVERT(date, GETDATE()), CONVERT(time, @returnTime), @userId, @userId, SYSUTCDATETIME()
+          FROM hris_Travel_Group_Version v
+          WHERE v.GroupCode = @id AND v.DepartureAt IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM hris_Travel_Group_Version newer WHERE newer.GroupCode = v.GroupCode AND newer.VersionNo > v.VersionNo)
+            AND NOT EXISTS (SELECT 1 FROM vms.SecurityTravelCheckpoints cp WHERE cp.TravelId = v.GroupCode)
+            AND EXISTS (
+              SELECT 1 FROM hris_Travel_Group_Approval a
+              WHERE a.GroupCode = v.GroupCode AND a.VersionNo = v.VersionNo
+                AND UPPER(a.ApprovalType) IN ('VEHICLE', 'KENDARAAN') AND a.StatusId = 3
+            )
+          ORDER BY v.VersionNo DESC;
+          SET @affected = @@ROWCOUNT;
+        END
+      END
+      ELSE
+      BEGIN
+        UPDATE cp
+        SET ReturnedDate = CONVERT(date, GETDATE()), ReturnedTime = CONVERT(time, @returnTime),
+            ReturnedBy = @userId, UpdatedAt = SYSUTCDATETIME()
+        FROM vms.SecurityTravelCheckpoints cp
+        WHERE cp.ReturnedDate IS NULL
+          AND (@id IS NOT NULL AND cp.TravelId = @id OR @id IS NULL AND cp.NIP = @nip);
+        SET @affected = @@ROWCOUNT;
+      END
+      SELECT @affected AS Affected;
     `);
   return Number(result.recordset[0]?.Affected ?? 0) > 0;
 }
