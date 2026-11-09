@@ -73,9 +73,9 @@ API Security memakai same-origin `/api`; development Vite mem-proxy ke backend l
 
 | Endpoint | Method | Keterangan |
 |---|---|---|
-| `/api/security/overview` | GET | Proxy VisitorBMC terautentikasi cookie. Data hari ini: `{counts: {travel, izin, kembali}, travel: [], izin: [], kembali: []}` |
+| `/api/security/overview` | GET | Proxy VisitorBMC terautentikasi cookie. Data hari ini: `{counts: {travel, izin, kembali}, travel: [], izin: [], kembali: []}`. `travel` berisi tugas luar mandiri dan group; group memakai `groupCode`, `members`, `kendaraan`, `platNomor`, `pengemudi`, dan `qrToken`. |
 | `/api/travel/depart` | POST | Catat keberangkatan Security. Body `{id, nip, departureTime}`; mengubah status internal menjadi `SEDANG_TUGAS_LUAR`. |
-| `/api/travel/scan` | POST | Scan QR toggle. Body `{id, time}`; mencatat `DEPARTED` bila belum ada checkpoint aktif, atau `RETURNED` bila sudah berangkat. |
+| `/api/travel/scan` | POST | Scan QR keberangkatan saja. Body `{id, time}`; menolak scan ulang untuk checkpoint aktif, lalu gunakan tombol `Catat Kembali`. |
 | `/api/travel/return` | POST | Proxy VisitorBMC terautentikasi cookie. Body `{id, nip}` — catat karyawan tugas luar sudah kembali |
 | `/api/security/report?type=&start=&end=` | GET | Proxy VisitorBMC terautentikasi cookie. `type`: `travel` \| `izin` \| `kembali`; `start`/`end`: ISO date → `{rows: [...]}` |
 | `/api/safety-inductions/staff-complete/:visitId` | POST | Staff `ADMIN`/`SECURITY` menandai seluruh visitor yang masih memerlukan induction sebagai selesai dan mencatat user staff sebagai pembuat |
@@ -95,7 +95,7 @@ Konten Safety Induction dipetakan: `TAKE_GOODS`, `MONITORING`, `SEND_GOODS`, dan
 - **Polling**: `GET /api/security/overview` otomatis tiap **20 detik**; tombol "Perbarui" untuk manual refresh (dengan animasi ikon `pulse`).
 - **Stale handling**: kalau refresh manual gagal, tampilkan banner amber "Menampilkan data terakhir saat koneksi putus" + data terakhir tetap ditampilkan.
 - **Nav**: 4 halaman — `dashboard` (Ringkasan), `travel` (Tugas Luar), `izin` (Izin), `kembali` (Kembali). Desktop: sidebar rail kiri; mobile: TopNav atas. Badge angka per menu dari `data.counts`.
-- **Aksi tulis**: Scan QR membaca ID tugas luar, lalu mencatat keberangkatan lewat `POST /api/travel/depart`; "Catat Berangkat" tetap tersedia untuk input manual. "Catat Kembali" (`POST /api/travel/return`) hanya untuk status `SEDANG_TUGAS_LUAR`.
+- **Aksi tulis**: Scan QR membaca ID tugas luar, lalu mencatat keberangkatan; scan ulang ditolak. "Catat Berangkat" tetap tersedia untuk input manual. "Catat Kembali" (`POST /api/travel/return`) tersedia pada Ringkasan Gate dan Tugas Luar untuk status `SEDANG_TUGAS_LUAR`.
 - **Toast**: `broadcastToast({type: 'ok'|'error', message, auto})` dari `Toast.jsx` — pakai custom event, jadi bisa dipanggil dari mana saja.
 - **Mock mode**: data Security tetap dapat memakai dummy data dengan `?mock`, tetapi route tetap mensyaratkan autentikasi VisitorBMC.
 

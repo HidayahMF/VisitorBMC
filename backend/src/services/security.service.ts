@@ -1,10 +1,10 @@
 import { getDbConnection, sql } from '../config/database';
 
 export type SecurityReportType = 'travel' | 'izin' | 'kembali';
-export type ScanAction = 'DEPARTED' | 'RETURNED';
+export type ScanAction = 'DEPARTED';
 
-export function scanAction(hasActiveCheckpoint: boolean): ScanAction {
-  return hasActiveCheckpoint ? 'RETURNED' : 'DEPARTED';
+export function scanAction(): ScanAction {
+  return 'DEPARTED';
 }
 
 function pad(value: number): string {
@@ -26,7 +26,7 @@ function field(row: Record<string, unknown>, name: string): unknown {
   return row[name] ?? row[name.toLowerCase()] ?? row[name.toUpperCase()];
 }
 
-function mapTravel(row: Record<string, unknown>) {
+export function mapTravel(row: Record<string, unknown>) {
   const departed = Boolean(field(row, 'CheckpointId'));
   return {
     id: field(row, 'Id'),
@@ -39,7 +39,81 @@ function mapTravel(row: Record<string, unknown>) {
     jamKembali: formatTime(field(row, 'EndTime')),
     status: departed ? 'SEDANG_TUGAS_LUAR' : 'AKAN_TUGAS_LUAR',
     departureTime: formatTime(field(row, 'DepartureTime')),
+    jenisTugas: 'MANDIRI',
   };
+}
+
+export function mapGroupTravelRows(rows: Record<string, unknown>[]) {
+  const latestVersions = new Map<string, number>();
+  for (const row of rows) {
+    const groupCode = trim(field(row, 'GroupCode'));
+    const versionNo = Number(field(row, 'VersionNo'));
+    if (groupCode && Number.isFinite(versionNo)) latestVersions.set(groupCode, Math.max(latestVersions.get(groupCode) ?? 0, versionNo));
+  }
+
+  const groups = new Map<string, {
+    id: string;
+    groupCode: string;
+    nip: string;
+    nama: string;
+    members: { nip: string; nama: string }[];
+    tujuan: string;
+    keperluan: string;
+    tanggal: unknown;
+    jamKeluar: string | null;
+    jamKembali: string | null;
+    kendaraan: string;
+    platNomor: string;
+    pengemudi: string;
+    qrToken: string;
+    status: 'AKAN_TUGAS_LUAR' | 'SEDANG_TUGAS_LUAR';
+    groupStatus: string;
+    departureTime: string | null;
+    jenisTugas: 'GROUP';
+  }>();
+
+  for (const row of rows) {
+    const groupCode = trim(field(row, 'GroupCode'));
+    const memberNip = trim(field(row, 'MemberNIP'));
+    const memberStatus = trim(field(row, 'MemberStatus'));
+    if (!groupCode || !memberNip || memberStatus !== 'ACTIVE') continue;
+
+    const versionNo = Number(field(row, 'VersionNo'));
+    if (latestVersions.get(groupCode) !== versionNo) continue;
+    const current = groups.get(groupCode);
+
+    const member = { nip: memberNip, nama: trim(field(row, 'MemberName')) || '-' };
+    if (current) {
+      if (!current.members.some((item) => item.nip === member.nip)) current.members.push(member);
+      current.nip = current.members.map((item) => item.nip).join(', ');
+      current.nama = current.members.map((item) => item.nama).join(', ');
+      continue;
+    }
+
+    const departed = Boolean(field(row, 'DepartureAt'));
+    groups.set(groupCode, {
+      id: groupCode,
+      groupCode,
+      nip: member.nip,
+      nama: member.nama,
+      members: [member],
+      tujuan: trim(field(row, 'Tujuan')),
+      keperluan: trim(field(row, 'Tugas')),
+      tanggal: field(row, 'ExitDate'),
+      jamKeluar: formatTime(field(row, 'ExitTime')),
+      jamKembali: null,
+      kendaraan: trim(field(row, 'VehicleType')),
+      platNomor: trim(field(row, 'VehiclePlate')),
+      pengemudi: trim(field(row, 'DriverNIP')) || trim(field(row, 'DriverName')),
+      qrToken: trim(field(row, 'QrToken')),
+      status: departed ? 'SEDANG_TUGAS_LUAR' : 'AKAN_TUGAS_LUAR',
+      groupStatus: trim(field(row, 'GroupStatus')) || trim(field(row, 'VersionStatus')),
+      departureTime: formatTime(field(row, 'DepartureAt')),
+      jenisTugas: 'GROUP',
+    });
+  }
+
+  return [...groups.values()];
 }
 
 function mapIzin(row: Record<string, unknown>) {
@@ -74,12 +148,28 @@ async function activeTravels() {
            e.Name AS Nama
     FROM hris_Travel t
     LEFT JOIN hris_Employee e ON t.NIP = e.NIP
-
     LEFT JOIN vms.SecurityTravelCheckpoints cp ON cp.TravelId = t.Id AND cp.ReturnedDate IS NULL
     WHERE t.[Status] = 'APPROVED' AND t.EndDate IS NULL AND t.IsActive = 1
     ORDER BY t.StartDate DESC, t.InpDate DESC
   `);
-  return result.recordset.map(mapTravel);
+  const groupResult = await pool.request().query(`
+    WITH LatestVersion AS (
+      SELECT v.*, ROW_NUMBER() OVER (PARTITION BY v.GroupCode ORDER BY v.VersionNo DESC) AS rn
+      FROM hris_Travel_Group_Version v
+    )
+    SELECT g.GroupCode, g.Status AS GroupStatus, v.VersionNo, v.ExitDate, v.ExitTime,
+           v.Tujuan, v.Tugas, v.VehicleType, v.VehiclePlate, v.Status AS VersionStatus,
+           v.QrToken, v.DepartureAt, v.DriverNIP, v.DriverName,
+           m.NIP AS MemberNIP, e.Name AS MemberName, m.Status AS MemberStatus,
+           v.VersionNo AS CurrentVersionNo
+    FROM hris_Travel_Group g
+    INNER JOIN LatestVersion v ON v.GroupCode = g.GroupCode AND v.rn = 1
+    INNER JOIN hris_Travel_Group_Member m ON m.GroupCode = v.GroupCode AND m.VersionNo = v.VersionNo AND m.Status = 'ACTIVE'
+    LEFT JOIN hris_Employee e ON e.NIP = m.NIP
+    WHERE g.Status NOT IN ('CANCELLED', 'COMPLETED') AND v.Status NOT IN ('CANCELLED', 'COMPLETED')
+    ORDER BY v.ExitDate DESC, v.ExitTime ASC, g.GroupCode, m.NIP
+  `);
+  return [...result.recordset.map(mapTravel), ...mapGroupTravelRows(groupResult.recordset)];
 }
 
 async function activePermitsToday() {

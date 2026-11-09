@@ -19,8 +19,7 @@ describe('parseTravelQr', () => {
 });
 
 describe('scanSuccessCopy', () => {
-  it('menghasilkan pesan keberangkatan dan kepulangan', () => {
+  it('menghasilkan pesan keberangkatan', () => {
     expect(scanSuccessCopy('DEPARTED')).toEqual(['Berhasil dicatat berangkat.', 'Selamat melakukan perjalanan, hati-hati di jalan.']);
-    expect(scanSuccessCopy('RETURNED')).toEqual(['Berhasil dicatat kembali.', 'Tugas luar selesai. Selamat kembali ke kantor.']);
   });
 });

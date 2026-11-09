@@ -45,14 +45,9 @@ export async function scanTravel(req: AuthenticatedRequest, res: Response, next:
     const time = String(req.body?.time ?? '');
     if (!/^[A-Za-z0-9._-]{1,50}$/.test(id) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new AppError('ID dan jam scan wajib diisi.', 400);
     const checkpoint = await getActiveTravelCheckpoint(id);
-    const action = scanAction(Boolean(checkpoint));
-    if (action === 'RETURNED') {
-      if (!await markTravelReturned(id, checkpoint!.NIP, time, req.user!.userId)) throw new AppError('Kepulangan gagal dicatat.', 409);
-      res.json({ action });
-      return;
-    }
+    if (checkpoint) throw new AppError('Karyawan sudah tercatat berangkat. Gunakan tombol Catat Kembali.', 409);
     if (!await markTravelDeparted(id, '', time, req.user!.userId)) throw new AppError('Tugas luar tidak ditemukan atau sudah selesai.', 409);
-    res.json({ action });
+    res.json({ action: scanAction() });
   } catch (error) {
     next(error);
   }

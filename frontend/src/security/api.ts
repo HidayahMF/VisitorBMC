@@ -62,9 +62,9 @@ export async function returnTravel(id: number | string, nip: string, returnTime:
   await request<undefined>('/api/travel/return', { method: 'POST', body: { id, travelId: id, nip, returnTime } });
 }
 
-export async function scanTravel(id: string, time: string): Promise<'DEPARTED' | 'RETURNED'> {
+export async function scanTravel(id: string, time: string): Promise<'DEPARTED'> {
   if (isMock()) return 'DEPARTED';
-  const result = await request<{ action: 'DEPARTED' | 'RETURNED' }>('/api/travel/scan', { method: 'POST', body: { id, time } });
+  const result = await request<{ action: 'DEPARTED' }>('/api/travel/scan', { method: 'POST', body: { id, time } });
   return result.action;
 }
 

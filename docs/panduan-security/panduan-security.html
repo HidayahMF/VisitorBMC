@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Panduan Security - BMC Online</title>
+<!-- Design rationale: BMC navy anchors identity; cyan marks operational guidance; repo Inter preserves product consistency; fixed A4 pages prevent print clipping; real UI screenshots provide evidence. -->
+<style>
+@page { size: A4; margin: 0; }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("assets/Inter-Variable-Latin.woff2") format("woff2"); }
+:root { --navy:#062b72; --blue:#0b55b7; --cyan:#18a7c7; --ink:#16233b; --muted:#66748d; --line:#dce4ef; --canvas:#f5f8fc; --green:#0f766e; --radius-sm:7px; --radius-md:11px; }
+* { box-sizing:border-box; }
+html, body { margin:0; padding:0; }
+body { color:var(--ink); background:#dfe6f0; font-family:"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; font-size:10.5pt; line-height:1.5; -webkit-font-smoothing:antialiased; }
+.page { width:210mm; height:297mm; margin:0; padding:16mm 18mm 43mm; background:#fff; position:relative; page-break-after:always; break-after:page; overflow:hidden; }
+.cover { padding-bottom:16mm; }
+.page:last-child { page-break-after:auto; break-after:auto; }
+.cover { display:flex; flex-direction:column; justify-content:space-between; color:#fff; background:var(--navy); }
+.cover:after { content:""; position:absolute; width:180mm; height:180mm; right:-95mm; bottom:-70mm; border:1px solid rgba(255,255,255,.14); border-radius:50%; box-shadow:0 0 0 24mm rgba(255,255,255,.04),0 0 0 48mm rgba(255,255,255,.025); }
+.brand { display:flex; align-items:center; gap:10px; font-size:11pt; font-weight:750; letter-spacing:.02em; text-transform:uppercase; }
+.brand-logo { width:58mm; height:auto; display:block; filter:brightness(0) invert(1); }
+.page-header { display:flex; align-items:center; justify-content:space-between; gap:8mm; margin-bottom:9mm; padding-bottom:4mm; border-bottom:1px solid var(--line); }
+.page-header .brand-logo { width:39mm; filter:none; }
+.page-header .section-label { color:var(--muted); font-size:7.5pt; font-weight:700; letter-spacing:.08em; line-height:1.35; text-align:right; text-transform:uppercase; }
+.cover-main { position:relative; z-index:1; margin-top:35mm; }
+.eyebrow { color:var(--cyan); font-size:8pt; font-weight:750; letter-spacing:.1em; text-transform:uppercase; }
+.cover .eyebrow { color:#b9f3fb; }
+h1 { margin:8px 0 12px; font-size:31pt; line-height:1.08; letter-spacing:-.045em; font-weight:780; }
+.cover h1 { max-width:150mm; }
+.subtitle { max-width:130mm; color:rgba(255,255,255,.86); font-size:13pt; line-height:1.45; }
+.cover-footer { position:relative; z-index:1; display:flex; justify-content:space-between; padding-top:7mm; border-top:1px solid rgba(255,255,255,.3); font-size:8.5pt; }
+h2 { margin:0 0 4mm; color:var(--navy); font-size:20pt; line-height:1.12; letter-spacing:-.04em; font-weight:760; }
+h3 { margin:5mm 0 2mm; color:var(--blue); font-size:12pt; line-height:1.2; font-weight:720; }
+p { margin:0 0 2.5mm; }
+.lead { max-width:145mm; color:var(--muted); font-size:11pt; line-height:1.45; }
+.note { padding:3.5mm 4.5mm; border:1px solid #c8eaf2; border-radius:var(--radius-sm); background:#edf8fc; box-shadow:inset 0 2px 0 var(--cyan); }
+.credentials { display:grid; grid-template-columns:1fr 1fr; gap:4mm; margin:7mm 0; }
+.credential { padding:4.5mm; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--canvas); }
+.credential small { display:block; color:var(--muted); font-size:8pt; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+.credential strong { display:block; margin-top:2mm; color:var(--navy); font-family:Consolas,monospace; font-size:12.5pt; }
+.step { display:grid; grid-template-columns:9mm 1fr; gap:4mm; margin:4mm 0; align-items:start; }
+.number { width:8mm; height:8mm; display:grid; place-items:center; border-radius:50%; color:#fff; background:var(--blue); font-size:9pt; font-weight:750; }
+.step strong { display:block; margin-bottom:1mm; color:var(--navy); font-size:11pt; font-weight:720; }
+.step p { color:var(--muted); }
+.image-card { margin:5mm 0 6mm; padding:2.5mm; border:1px solid var(--line); border-radius:var(--radius-md); background:#fff; box-shadow:0 2px 7px rgba(23,47,84,.05); }
+.image-card img { display:block; width:100%; max-height:105mm; object-fit:contain; border-radius:var(--radius-sm); }
+.page:last-child .image-card { margin-top:7mm !important; }
+.page:last-child .image-card img { max-height:80mm; }
+.caption { margin-top:2mm; color:var(--muted); font-size:8pt; text-align:center; }
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:5mm; }
+.panel { padding:4.5mm; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--canvas); }
+.panel.blue { border-top:2px solid var(--blue); }
+.panel.green { border-top:2px solid var(--green); }
+.panel h3 { margin-top:0; }
+ul { margin:2mm 0 0; padding-left:4.5mm; }
+li { margin:1.2mm 0; }
+.footer { position:absolute; left:18mm; right:18mm; bottom:7mm; display:flex; align-items:center; justify-content:space-between; min-height:9mm; padding:2.5mm 4mm 2.5mm 5mm; color:#fff; background:var(--navy); clip-path:polygon(0 0, calc(100% - 5mm) 0, 100% 50%, calc(100% - 5mm) 100%, 0 100%, 3mm 50%); font-size:7.5pt; font-weight:650; }
+.footer span:last-child { min-width:7mm; color:#b9f3fb; font-size:9pt; font-weight:800; text-align:right; }
+.small { color:var(--muted); font-size:9pt; }
+@media print { body { background:#fff; } .page { margin:0; } }
+</style>
+</head>
+<body>
+<section class="page cover">
+  <div class="brand"><img class="brand-logo" src="assets/logo-bmc.png" alt="Braja Mukti Cakra"></div>
+  <div class="cover-main">
+    <div class="eyebrow">Panduan Operasional Security</div>
+    <h1>Scan Approval<br>Tugas Luar</h1>
+    <p class="subtitle">Panduan praktis untuk mencatat keberangkatan dengan QR dan kepulangan melalui tombol operasional pada Visitor Management System.</p>
+  </div>
+  <div class="cover-footer"><span>security.bmc.co.id</span><span>Versi panduan: 1.0</span></div>
+</section>
+
+<section class="page">
+  <header class="page-header"><img class="brand-logo" src="assets/logo-bmc.png" alt="Braja Mukti Cakra"><span class="section-label">Panduan Security<br>Scan Approval Tugas Luar</span></header>
+  <div class="eyebrow">01 · Akses aplikasi</div>
+  <h2>Login sebagai Security</h2>
+  <p class="lead">Gunakan akun petugas Security untuk masuk ke aplikasi.</p>
+  <div class="credentials"><div class="credential"><small>Username</small><strong>security</strong></div><div class="credential"><small>Password</small><strong>securitybmc</strong></div></div>
+  <div class="step"><span class="number">1</span><div><strong>Buka alamat aplikasi</strong><p>Akses <b>https://security.bmc.co.id</b>, lalu pilih <b>Login Petugas</b>.</p></div></div>
+  <div class="step"><span class="number">2</span><div><strong>Pilih jenis login Security</strong><p>Pastikan tab <b>Security</b> aktif.</p></div></div>
+  <div class="step"><span class="number">3</span><div><strong>Masukkan akun</strong><p>Isi username dan password, lalu tekan <b>Masuk</b>.</p></div></div>
+  <div class="image-card"><img src="assets/01-login.png" alt="Halaman login petugas"><div class="caption">Halaman login petugas Security</div></div>
+  <div class="note"><b>Catatan keamanan:</b> jangan membagikan password kepada pihak lain. Logout setelah selesai menggunakan aplikasi.</div>
+  <div class="footer"><span>Panduan Security · BMC Online</span><span>2</span></div>
+</section>
+
+<section class="page">
+  <header class="page-header"><img class="brand-logo" src="assets/logo-bmc.png" alt="Braja Mukti Cakra"><span class="section-label">Panduan Security<br>Scan Approval Tugas Luar</span></header>
+  <div class="eyebrow">02 · Beranda</div>
+  <h2>Mengenal Dasbor</h2>
+  <p class="lead">Dasbor menampilkan ringkasan kondisi operasional hari ini.</p>
+  <div class="two-col" style="margin-top:7mm">
+    <div class="panel"><h3>Informasi utama</h3><ul><li>Jumlah pengunjung hari ini.</li><li>Jumlah orang yang masih berada di area.</li><li>Jumlah pengunjung yang sudah keluar.</li><li>Pengunjung yang perlu mengikuti Safety Induction.</li></ul></div>
+    <div class="panel"><h3>Akses cepat</h3><ul><li>Kunjungan baru.</li><li>Daftar orang yang sedang di dalam.</li><li>Riwayat kunjungan.</li><li>Daftar perusahaan.</li></ul></div>
+  </div>
+  <div class="image-card" style="margin-top:8mm"><img src="assets/02-dashboard.png" alt="Dasbor aplikasi"><div class="caption">Dasbor aplikasi setelah login</div></div>
+  <div class="note"><b>Untuk pencatatan tugas luar:</b> gunakan menu <b>Tugas Luar</b> pada bagian <b>Security, BMC Online</b> di sidebar.</div>
+  <div class="footer"><span>Panduan Security · BMC Online</span><span>3</span></div>
+</section>
+
+<section class="page">
+  <header class="page-header"><img class="brand-logo" src="assets/logo-bmc.png" alt="Braja Mukti Cakra"><span class="section-label">Panduan Security<br>Scan Approval Tugas Luar</span></header>
+  <div class="eyebrow">03 · Tugas luar</div>
+  <h2>Membuka menu Tugas Luar</h2>
+  <p class="lead">Menu ini digunakan untuk melihat karyawan yang akan berangkat, sedang tugas luar, atau siap dicatat kembali.</p>
+  <div class="step"><span class="number">1</span><div><strong>Pilih Tugas Luar</strong><p>Pada sidebar, tekan menu <b>Tugas Luar</b>.</p></div></div>
+  <div class="step"><span class="number">2</span><div><strong>Periksa status karyawan</strong><p><b>Akan Tugas Luar</b> berarti belum dicatat berangkat. <b>Sedang Tugas Luar</b> berarti sudah berada di luar kantor.</p></div></div>
+  <div class="step"><span class="number">3</span><div><strong>Pilih metode pencatatan</strong><p>Gunakan tombol di baris karyawan untuk pencatatan manual, atau tekan <b>Scan QR</b> untuk membaca QR karyawan.</p></div></div>
+  <div class="image-card"><img src="assets/04-tugas-luar.png" alt="Menu Tugas Luar"><div class="caption">Daftar tugas luar dan tombol Scan QR</div></div>
+  <div class="note"><b>Alur QR:</b> scan QR hanya digunakan untuk mencatat keberangkatan. Kepulangan dicatat dengan tombol <b>Catat Kembali</b> pada Ringkasan Gate atau baris tugas luar.</div>
+  <div class="footer"><span>Panduan Security · BMC Online</span><span>4</span></div>
+</section>
+
+<section class="page">
+  <header class="page-header"><img class="brand-logo" src="assets/logo-bmc.png" alt="Braja Mukti Cakra"><span class="section-label">Panduan Security<br>Scan Approval Tugas Luar</span></header>
+  <div class="eyebrow">04 · Keberangkatan</div>
+  <h2>Mencatat karyawan berangkat</h2>
+  <p class="lead">Gunakan langkah ini ketika karyawan mulai menjalankan tugas luar.</p>
+  <div class="step"><span class="number">1</span><div><strong>Tekan Scan QR</strong><p>Arahkan kamera ke QR tugas luar karyawan. Jika kamera tidak tersedia, gunakan pilihan foto QR.</p></div></div>
+  <div class="step"><span class="number">2</span><div><strong>Periksa jam berangkat</strong><p>Modal biru <b>Konfirmasi Keberangkatan</b> akan muncul. Pastikan jam sudah benar.</p></div></div>
+  <div class="step"><span class="number">3</span><div><strong>Simpan pencatatan</strong><p>Tekan <b>Ya, Catat Berangkat</b>. Data baru tersimpan setelah tombol ini ditekan.</p></div></div>
+  <div class="image-card"><img src="assets/05-modal-berangkat.png" alt="Konfirmasi keberangkatan"><div class="caption">Modal konfirmasi keberangkatan, warna biru</div></div>
+  <div class="panel blue"><h3>Hasil berhasil</h3><p>Sistem menampilkan pemberitahuan <b>Berhasil dicatat berangkat.</b> Status karyawan berubah menjadi <b>Sedang Tugas Luar</b>.</p></div>
+  <div class="footer"><span>Panduan Security · BMC Online</span><span>5</span></div>
+</section>
+
+<section class="page">
+  <header class="page-header"><img class="brand-logo" src="assets/logo-bmc.png" alt="Braja Mukti Cakra"><span class="section-label">Panduan Security<br>Scan Approval Tugas Luar</span></header>
+  <div class="eyebrow">05 · Kepulangan</div>
+  <h2>Mencatat karyawan kembali</h2>
+  <p class="lead">Kepulangan dicatat manual setelah karyawan kembali ke kantor. Tidak perlu scan QR ulang.</p>
+  <div class="step"><span class="number">1</span><div><strong>Buka Ringkasan Gate</strong><p>Pada daftar <b>Status Tugas Luar</b>, cari karyawan berstatus <b>Sedang Tugas Luar</b>.</p></div></div>
+  <div class="step"><span class="number">2</span><div><strong>Tekan Catat Kembali</strong><p>Tekan tombol <b>Catat Kembali</b> pada baris karyawan. Tombol serupa juga tersedia di menu <b>Tugas Luar</b>.</p></div></div>
+  <div class="step"><span class="number">3</span><div><strong>Periksa jam kembali</strong><p>Pada modal <b>Konfirmasi Kepulangan</b>, pastikan jam sudah benar, lalu tekan <b>Ya, Catat Kembali</b>.</p></div></div>
+  <div class="image-card"><img src="assets/06-modal-kembali.png" alt="Konfirmasi kepulangan"><div class="caption">Modal konfirmasi kepulangan, warna hijau</div></div>
+  <div class="panel green"><h3>Hasil berhasil</h3><p>Sistem menampilkan: <b>Berhasil dicatat kembali.</b> Tugas luar selesai dan masuk ke daftar <b>Sudah Kembali Hari Ini</b>.</p></div>
+  <div class="footer"><span>Panduan Security · BMC Online</span><span>6</span></div>
+</section>
+
+<section class="page">
+  <header class="page-header"><img class="brand-logo" src="assets/logo-bmc.png" alt="Braja Mukti Cakra"><span class="section-label">Panduan Security<br>Scan Approval Tugas Luar</span></header>
+  <div class="eyebrow">06 · Bantuan cepat</div>
+  <h2>Jika mengalami kendala</h2>
+  <div class="two-col" style="margin-top:7mm">
+    <div class="panel"><h3>QR tidak terbaca</h3><ul><li>Pastikan QR terlihat penuh dan tidak buram.</li><li>Atur jarak kamera agar QR berada di tengah.</li><li>Gunakan <b>pilih foto QR</b> jika kamera gagal.</li></ul></div>
+    <div class="panel"><h3>Jam perlu dikoreksi</h3><ul><li>Ubah jam pada modal sebelum menyimpan.</li><li>Tekan <b>Batal</b> bila data belum benar.</li><li>Jangan menyimpan data yang belum diperiksa.</li></ul></div>
+    <div class="panel"><h3>Sudah kembali ke kantor</h3><ul><li>Jangan scan QR ulang.</li><li>Buka <b>Ringkasan Gate</b> atau <b>Tugas Luar</b>.</li><li>Tekan <b>Catat Kembali</b>, lalu periksa jam.</li></ul></div>
+    <div class="panel"><h3>Aplikasi tidak merespons</h3><ul><li>Periksa koneksi internet.</li><li>Refresh halaman.</li><li>Login ulang bila sesi berakhir.</li></ul></div>
+  </div>
+  <div class="image-card" style="margin-top:9mm"><img src="assets/07-scan-qr.png" alt="Jendela scan QR"><div class="caption">Jendela Scan QR dengan pilihan kamera atau foto</div></div>
+  <div class="note"><b>Butuh bantuan?</b> Sampaikan nama karyawan, waktu kejadian, dan pesan error kepada admin aplikasi. Jangan kirim password.</div>
+  <div class="footer"><span>Panduan Security · BMC Online</span><span>7</span></div>
+</section>
+</body>
+</html>

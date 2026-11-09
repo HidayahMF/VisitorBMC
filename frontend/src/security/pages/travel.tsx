@@ -3,7 +3,7 @@ import QrScanner from 'qr-scanner';
 import { departTravel, fetchOverview, returnTravel, fetchReport, scanTravel } from '../api';
 import { type Travel, type ReportRow } from '../types';
 import { Icon } from '../../components/Icon';
-import { parseTravelQr, scanSuccessCopy, type ScanAction } from '../qr';
+import { parseTravelQr, scanSuccessCopy } from '../qr';
 
 export function SecurityTravelPage() {
   const [items, setItems] = useState<Travel[]>([]);
@@ -21,7 +21,6 @@ export function SecurityTravelPage() {
   const [scanSubmitting, setScanSubmitting] = useState(false);
   const [scanSuccess, setScanSuccess] = useState<[string, string] | null>(null);
   const [scannedTravelId, setScannedTravelId] = useState<string | null>(null);
-  const [scanAction, setScanAction] = useState<ScanAction>('DEPARTED');
   const scanBusyRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -55,7 +54,7 @@ export function SecurityTravelPage() {
       }
       scanBusyRef.current = true;
       setScannerOpen(false);
-      setScanAction(items.some((item) => String(item.id) === payload.id && item.status === 'SEDANG_TUGAS_LUAR') ? 'RETURNED' : 'DEPARTED');
+
       setScannedTravelId(payload.id);
       setScanSubmitting(false);
     }, {
@@ -77,7 +76,7 @@ export function SecurityTravelPage() {
       const payload = parseTravelQr(result.data);
       if (!payload) throw new Error('QR tidak valid atau sudah tidak berlaku.');
       setScannerOpen(false);
-      setScanAction(items.some((item) => String(item.id) === payload.id && item.status === 'SEDANG_TUGAS_LUAR') ? 'RETURNED' : 'DEPARTED');
+
       setScannedTravelId(payload.id);
       setScanSubmitting(false);
     } catch (cause) {
@@ -206,15 +205,16 @@ export function SecurityTravelPage() {
             <table className="companies-table security-travel-table">
               <thead>
                 <tr>
-                  <th rowSpan={2} style={{ width: '20%' }}>Status</th>
-                  <th rowSpan={2} style={{ width: '22%' }}>Karyawan</th>
-                  <th rowSpan={2} style={{ width: '25%' }}>Tujuan & Keperluan</th>
+                  <th rowSpan={2} style={{ width: '15%' }}>Status</th>
+                  <th rowSpan={2} style={{ width: '25%' }}>Karyawan / Group</th>
+                  <th rowSpan={2} style={{ width: '23%' }}>Tujuan & Keperluan</th>
+                  <th rowSpan={2} style={{ width: '15%' }}>Kendaraan</th>
                   <th colSpan={2} className="text-center">Jam Berangkat</th>
                   <th rowSpan={2} className="text-right" style={{ width: '15%' }}>Aksi</th>
                 </tr>
                 <tr>
-                  <th style={{ width: '9%' }}>Jam Surat</th>
-                  <th style={{ width: '9%' }}>Jam Aktual</th>
+                  <th style={{ width: '7%' }}>Jam Surat</th>
+                  <th style={{ width: '7%' }}>Jam Aktual</th>
                 </tr>
               </thead>
               <tbody>
@@ -226,12 +226,20 @@ export function SecurityTravelPage() {
                       </span>
                     </td>
                     <td>
-                      <strong className="company-name">{item.nama}</strong>
-                      <span className="text-xs text-gray-500 font-mono">NIP: {item.nip}</span>
+                      <strong className="company-name">{item.jenisTugas === 'GROUP' ? item.groupCode : item.nama}</strong>
+                      {item.jenisTugas === 'GROUP' ? <>
+                        <span className="text-xs text-gray-500">{item.members?.map((member) => `${member.nama} (${member.nip})`).join(', ')}</span>
+                        {item.qrToken && <span className="text-xs text-gray-500 font-mono">QR: {item.qrToken}</span>}
+                      </> : <span className="text-xs text-gray-500 font-mono">NIP: {item.nip}</span>}
                     </td>
                     <td>
                       <div className="table-primary-text">{item.tujuan}</div>
                       <div className="text-xs text-gray-500">{item.keperluan}</div>
+                    </td>
+                    <td>
+                      <div className="text-xs">{item.kendaraan || '-'}</div>
+                      <div className="text-xs text-gray-500">{item.platNomor || '-'}</div>
+                      {item.pengemudi && <div className="text-xs text-gray-500">Driver: {item.pengemudi}</div>}
                     </td>
                     <td>
                       <span className="status-badge security-scheduled-time">{item.jamKeluar || '-'}</span>
@@ -240,13 +248,13 @@ export function SecurityTravelPage() {
                       <span className="status-badge security-departure-time">{item.departureTime || '-'}</span>
                     </td>
                     <td className="text-right">
-                      {item.status === 'AKAN_TUGAS_LUAR' ? <button
+                      {item.status === 'AKAN_TUGAS_LUAR' && item.jenisTugas !== 'GROUP' ? <button
                         type="button"
                         onClick={() => { setDepartureTime(new Date().toTimeString().slice(0, 5)); setDepartureId(item); }}
                         className="primary-button security-depart-button !min-h-[32px] !py-1 !text-xs"
                       >
                         Catat Berangkat
-                      </button> : <button type="button" onClick={() => { setReturnTime(new Date().toTimeString().slice(0, 5)); setConfirmId({ id: item.id, nip: item.nip, nama: item.nama }); }} className="primary-button !min-h-[32px] !py-1 !text-xs !bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700">Catat Kembali</button>}
+                      </button> : item.status === 'SEDANG_TUGAS_LUAR' && item.jenisTugas !== 'GROUP' ? <button type="button" onClick={() => { setReturnTime(new Date().toTimeString().slice(0, 5)); setConfirmId({ id: item.id, nip: item.nip, nama: item.nama }); }} className="primary-button !min-h-[32px] !py-1 !text-xs !bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700">Catat Kembali</button> : <span className="text-xs text-gray-500">{item.jenisTugas === 'GROUP' ? 'Group' : '-'}</span>}
                     </td>
                   </tr>
                 ))}
@@ -359,7 +367,7 @@ export function SecurityTravelPage() {
         </div>
       )}
       {departureId && <div className="content-preview-backdrop"><div className="bg-white rounded p-6 max-w-sm w-full space-y-4 shadow-xl border"><h3 className="font-bold text-base text-ink">Konfirmasi Keberangkatan</h3><p className="text-sm text-gray-600">Catat <strong>{departureId.nama}</strong> sebagai sedang tugas luar?</p><label className="block text-sm font-semibold text-gray-700" htmlFor="departure-time">Jam berangkat<input id="departure-time" type="time" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} className="mt-1 block w-full" disabled={submitting} /></label><div className="flex justify-end gap-2"><button type="button" className="secondary-button" onClick={() => setDepartureId(null)} disabled={submitting}>Batal</button><button type="button" className="primary-button !bg-blue-600 !border-blue-600" onClick={handleDeparture} disabled={submitting}>{submitting ? 'Menyimpan...' : 'Ya, Catat Berangkat'}</button></div></div></div>}
-      {scannedTravelId && <div className="content-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="departure-scan-title"><div className={`scan-action-dialog ${scanAction === 'RETURNED' ? 'scan-action-return' : 'scan-action-departure'} bg-white rounded p-6 max-w-sm w-full space-y-4 shadow-xl border`}><div className={`scan-action-header ${scanAction === 'RETURNED' ? 'scan-action-header-return' : 'scan-action-header-departure'}`}><div className="scan-action-header-icon"><Icon name={scanAction === 'RETURNED' ? 'check' : 'arrow-right'} size={18} /></div><div><span className="scan-action-kicker">Pencatatan perjalanan</span><h3 id="departure-scan-title" className="font-bold text-base">{scanAction === 'RETURNED' ? 'Konfirmasi Kepulangan' : 'Konfirmasi Keberangkatan'}</h3></div><span className="scan-action-status">{scanAction === 'RETURNED' ? 'KEMBALI' : 'BERANGKAT'}</span></div><p className="scan-action-copy">QR terbaca. {scanAction === 'RETURNED' ? 'Periksa jam kembali sebelum menyimpan.' : 'Periksa jam keberangkatan sebelum menyimpan.'}</p><label className="scan-action-time-label" htmlFor="scan-departure-time"><span>{scanAction === 'RETURNED' ? 'Jam kembali' : 'Jam berangkat'}</span><span className="scan-action-required">Wajib</span><input id="scan-departure-time" type="time" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} className="scan-action-time-input" disabled={scanSubmitting} /></label><div className="scan-action-footer"><button type="button" className="secondary-button" onClick={() => { setScannedTravelId(null); scanBusyRef.current = false; }} disabled={scanSubmitting}>Batal</button><button type="button" className={`primary-button scan-action-button ${scanAction === 'RETURNED' ? 'scan-action-button-return' : 'scan-action-button-departure'}`} onClick={() => { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(departureTime)) { setError('Jam pencatatan harus berformat HH:MM.'); return; } setScanSubmitting(true); void submitScan(scannedTravelId, departureTime); }} disabled={scanSubmitting}><Icon name="check" size={16} />{scanSubmitting ? 'Menyimpan...' : scanAction === 'RETURNED' ? 'Catat Kembali' : 'Catat Berangkat'}</button></div></div></div>}
+      {scannedTravelId && <div className="content-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="departure-scan-title"><div className="scan-action-dialog scan-action-departure bg-white rounded p-6 max-w-sm w-full space-y-4 shadow-xl border"><div className="scan-action-header scan-action-header-departure"><div className="scan-action-header-icon"><Icon name="arrow-right" size={18} /></div><div><span className="scan-action-kicker">Pencatatan perjalanan</span><h3 id="departure-scan-title" className="font-bold text-base">Konfirmasi Keberangkatan</h3></div><span className="scan-action-status">BERANGKAT</span></div><p className="scan-action-copy">QR terbaca. Periksa jam keberangkatan sebelum menyimpan.</p><label className="scan-action-time-label" htmlFor="scan-departure-time"><span>Jam berangkat</span><span className="scan-action-required">Wajib</span><input id="scan-departure-time" type="time" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} className="scan-action-time-input" disabled={scanSubmitting} /></label><div className="scan-action-footer"><button type="button" className="secondary-button" onClick={() => { setScannedTravelId(null); scanBusyRef.current = false; }} disabled={scanSubmitting}>Batal</button><button type="button" className="primary-button scan-action-button scan-action-button-departure" onClick={() => { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(departureTime)) { setError('Jam pencatatan harus berformat HH:MM.'); return; } setScanSubmitting(true); void submitScan(scannedTravelId, departureTime); }} disabled={scanSubmitting}><Icon name="check" size={16} />{scanSubmitting ? 'Menyimpan...' : 'Catat Berangkat'}</button></div></div></div>}
       {scannerOpen && <div className="content-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="scanner-title"><div className="bg-white rounded p-6 max-w-md w-full space-y-4 shadow-xl border"><div className="flex justify-between items-center"><h3 id="scanner-title" className="font-bold text-base text-ink">Scan QR karyawan</h3><button type="button" className="secondary-button" onClick={() => setScannerOpen(false)} disabled={scanSubmitting}>Tutup</button></div><video ref={videoRef} className="w-full aspect-video rounded bg-black object-cover" muted playsInline /><input ref={imageInputRef} type="file" accept="image/*" capture="environment" onChange={handleQrImage} className="block w-full text-sm" disabled={scanSubmitting} />{scannerError ? <p className="text-sm text-red-600" role="alert">{scannerError}</p> : <p className="text-sm text-gray-600">{scanSubmitting ? 'Memproses scan...' : 'Arahkan kamera atau pilih foto QR pengajuan tugas luar.'}</p>}</div></div>}
     </div>
   );

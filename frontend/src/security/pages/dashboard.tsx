@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchOverview } from '../api';
+import { fetchOverview, returnTravel } from '../api';
 import { type Overview } from '../types';
 import { Icon } from '../../components/Icon';
 
@@ -7,6 +7,10 @@ export function SecurityDashboardPage() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [returnTarget, setReturnTarget] = useState<{ id: number | string; nip: string; nama: string } | null>(null);
+  const [returnTime, setReturnTime] = useState(() => new Date().toTimeString().slice(0, 5));
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     void load();
@@ -22,6 +26,26 @@ export function SecurityDashboardPage() {
       setError(cause instanceof Error ? cause.message : 'Gagal memuat ringkasan');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleReturn() {
+    if (!returnTarget) return;
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(returnTime)) {
+      setError('Jam kembali harus berformat HH:MM.');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await returnTravel(returnTarget.id, returnTarget.nip, returnTime);
+      setSuccess(`${returnTarget.nama} berhasil dicatat sudah kembali.`);
+      setReturnTarget(null);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Gagal mencatat kembali');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -78,6 +102,8 @@ export function SecurityDashboardPage() {
         </article>
       </div>
 
+      {success && <div className="bg-green-50 text-green-700 border border-green-200 p-3 rounded text-sm" role="status">{success}</div>}
+
       <div className="dashboard-operations-grid">
         <section className="dashboard-operation-section">
           <div className="dashboard-section-head">
@@ -97,9 +123,12 @@ export function SecurityDashboardPage() {
                     <span>NIP: {item.nip} — {item.tujuan}</span>
                     <span className="text-xs text-gray-500 mt-0.5">{item.keperluan}</span>
                   </div>
+                  <div className="flex items-center gap-2">
                     <span className={item.status === 'SEDANG_TUGAS_LUAR' ? 'activity-status security-travel-time' : 'activity-status security-permit-type'}>
-                     {item.status === 'SEDANG_TUGAS_LUAR' ? `Aktual: ${item.departureTime || '-'}` : `Surat: ${item.jamKeluar || '-'}`}
-                  </span>
+                      {item.status === 'SEDANG_TUGAS_LUAR' ? `Aktual: ${item.departureTime || '-'}` : `Surat: ${item.jamKeluar || '-'}`}
+                    </span>
+                    {item.status === 'SEDANG_TUGAS_LUAR' && <button type="button" className="primary-button !min-h-[32px] !py-1 !text-xs !bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700" onClick={() => { setReturnTime(new Date().toTimeString().slice(0, 5)); setReturnTarget({ id: item.id, nip: item.nip, nama: item.nama }); }}>Catat Kembali</button>}
+                  </div>
                 </div>
               ))}
             </div>
@@ -132,6 +161,20 @@ export function SecurityDashboardPage() {
           )}
         </section>
       </div>
+
+      {returnTarget && <div className="content-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="dashboard-return-title">
+        <div className="bg-white rounded p-6 max-w-sm w-full space-y-4 shadow-xl border">
+          <h3 id="dashboard-return-title" className="font-bold text-base text-ink">Konfirmasi Kepulangan</h3>
+          <p className="text-sm text-gray-600">Konfirmasi kepulangan untuk <strong>{returnTarget.nama}</strong> ({returnTarget.nip})?</p>
+          <label className="block text-sm font-semibold text-gray-700" htmlFor="dashboard-return-time">Jam kembali
+            <input id="dashboard-return-time" type="time" value={returnTime} onChange={(event) => setReturnTime(event.target.value)} className="mt-1 block w-full" disabled={submitting} required />
+          </label>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" className="secondary-button" onClick={() => setReturnTarget(null)} disabled={submitting}>Batal</button>
+            <button type="button" className="primary-button !bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700" onClick={() => void handleReturn()} disabled={submitting}>{submitting ? 'Menyimpan...' : 'Ya, Catat Kembali'}</button>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }

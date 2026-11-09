@@ -9,6 +9,14 @@ export interface Travel {
   jamKembali?: string | null;
   status?: 'AKAN_TUGAS_LUAR' | 'SEDANG_TUGAS_LUAR';
   departureTime?: string | null;
+  jenisTugas?: 'MANDIRI' | 'GROUP';
+  groupCode?: string;
+  members?: { nip: string; nama: string }[];
+  kendaraan?: string;
+  platNomor?: string;
+  pengemudi?: string;
+  qrToken?: string;
+  groupStatus?: string;
 }
 
 export interface Izin {

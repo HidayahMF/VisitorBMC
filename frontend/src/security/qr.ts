@@ -33,14 +33,8 @@ export function parseTravelQr(value: string): TravelQrPayload | null {
   }
 }
 
-export type ScanAction = 'DEPARTED' | 'RETURNED';
+export type ScanAction = 'DEPARTED';
 
-export interface ScanResult {
-  action: ScanAction;
-}
-
-export function scanSuccessCopy(action: ScanAction): [string, string] {
-  return action === 'DEPARTED'
-    ? ['Berhasil dicatat berangkat.', 'Selamat melakukan perjalanan, hati-hati di jalan.']
-    : ['Berhasil dicatat kembali.', 'Tugas luar selesai. Selamat kembali ke kantor.'];
+export function scanSuccessCopy(_action: ScanAction): [string, string] {
+  return ['Berhasil dicatat berangkat.', 'Selamat melakukan perjalanan, hati-hati di jalan.'];
 }
