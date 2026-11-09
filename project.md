@@ -73,7 +73,7 @@ API Security memakai same-origin `/api`; development Vite mem-proxy ke backend l
 
 | Endpoint | Method | Keterangan |
 |---|---|---|
-| `/api/security/overview` | GET | Proxy VisitorBMC terautentikasi cookie. Data hari ini: `{counts: {travel, izin, kembali}, travel: [], izin: [], kembali: []}`. `travel` berisi tugas luar mandiri dan group; group memakai `groupCode`, `members`, `kendaraan`, `platNomor`, `pengemudi`, dan `qrToken`. |
+| `/api/security/overview` | GET | Proxy VisitorBMC terautentikasi cookie. Data hari ini: `{counts: {travel, izin, kembali}, travel: [], izin: [], kembali: []}`. `travel` berisi tugas luar mandiri dan group; group memakai `groupCode`, `members`, `kendaraan`, `platNomor`, `pengemudi`, `qrToken`, dan `canDepart` berdasarkan approval kendaraan. Group berangkat/kembali dicatat melalui checkpoint Security. |
 | `/api/travel/depart` | POST | Catat keberangkatan Security. Body `{id, nip, departureTime}`; mengubah status internal menjadi `SEDANG_TUGAS_LUAR`. |
 | `/api/travel/scan` | POST | Scan QR keberangkatan saja. Body `{id, time}`; menolak scan ulang untuk checkpoint aktif, lalu gunakan tombol `Catat Kembali`. |
 | `/api/travel/return` | POST | Proxy VisitorBMC terautentikasi cookie. Body `{id, nip}` — catat karyawan tugas luar sudah kembali |

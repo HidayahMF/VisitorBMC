@@ -153,13 +153,23 @@ export function SecurityTravelPage() {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(departureTime)) { setError('Jam keberangkatan harus berformat HH:MM.'); return; }
     setSubmitting(true);
     try {
-      await departTravel(departureId.id, departureId.nip, departureTime);
-      setSuccess(`${departureId.nama} berhasil dicatat berangkat.`);
+      await departTravel(departureId.id, departureId.jenisTugas === 'GROUP' ? '' : departureId.nip, departureTime);
+      setSuccess(`${departureId.nama || departureId.groupCode} berhasil dicatat berangkat.`);
       setDepartureId(null);
       await load();
       window.setTimeout(() => setSuccess(''), 4000);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Gagal mencatat keberangkatan'); }
     finally { setSubmitting(false); }
+  }
+
+  function travelAction(item: Travel) {
+    if (item.status === 'AKAN_TUGAS_LUAR' && (item.jenisTugas !== 'GROUP' || item.canDepart)) {
+      return <button type="button" onClick={() => { setDepartureTime(new Date().toTimeString().slice(0, 5)); setDepartureId(item); }} className="primary-button security-depart-button security-travel-action">Catat Berangkat</button>;
+    }
+    if (item.status === 'SEDANG_TUGAS_LUAR') {
+      return <button type="button" onClick={() => { setReturnTime(new Date().toTimeString().slice(0, 5)); setConfirmId({ id: item.id, nip: item.nip, nama: item.nama }); }} className="primary-button security-return-button security-travel-action">Catat Kembali</button>;
+    }
+    return <span className="security-travel-muted">{item.jenisTugas === 'GROUP' && item.status === 'AKAN_TUGAS_LUAR' ? 'Menunggu approval kendaraan' : '-'}</span>;
   }
 
   return (
@@ -201,66 +211,77 @@ export function SecurityTravelPage() {
             <p>Tidak ada karyawan yang sedang tugas luar saat ini.</p>
           </div>
         ) : (
-          <div className="companies-table-wrap security-travel-table-wrap">
-            <table className="companies-table security-travel-table">
-              <thead>
-                <tr>
-                  <th rowSpan={2} style={{ width: '15%' }}>Status</th>
-                  <th rowSpan={2} style={{ width: '25%' }}>Karyawan / Group</th>
-                  <th rowSpan={2} style={{ width: '23%' }}>Tujuan & Keperluan</th>
-                  <th rowSpan={2} style={{ width: '15%' }}>Kendaraan</th>
-                  <th colSpan={2} className="text-center">Jam Berangkat</th>
-                  <th rowSpan={2} className="text-right" style={{ width: '15%' }}>Aksi</th>
-                </tr>
-                <tr>
-                  <th style={{ width: '7%' }}>Jam Surat</th>
-                  <th style={{ width: '7%' }}>Jam Aktual</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <span className={`status-badge ${item.status === 'SEDANG_TUGAS_LUAR' ? 'security-travel-time' : 'security-permit-type'}`}>
-                        {item.status === 'SEDANG_TUGAS_LUAR' ? 'Sedang Tugas Luar' : 'Akan Tugas Luar'}
-                      </span>
-                    </td>
-                    <td>
-                      <strong className="company-name">{item.jenisTugas === 'GROUP' ? item.groupCode : item.nama}</strong>
-                      {item.jenisTugas === 'GROUP' ? <>
-                        <span className="text-xs text-gray-500">{item.members?.map((member) => `${member.nama} (${member.nip})`).join(', ')}</span>
-                        {item.qrToken && <span className="text-xs text-gray-500 font-mono">QR: {item.qrToken}</span>}
-                      </> : <span className="text-xs text-gray-500 font-mono">NIP: {item.nip}</span>}
-                    </td>
-                    <td>
-                      <div className="table-primary-text">{item.tujuan}</div>
-                      <div className="text-xs text-gray-500">{item.keperluan}</div>
-                    </td>
-                    <td>
-                      <div className="text-xs">{item.kendaraan || '-'}</div>
-                      <div className="text-xs text-gray-500">{item.platNomor || '-'}</div>
-                      {item.pengemudi && <div className="text-xs text-gray-500">Driver: {item.pengemudi}</div>}
-                    </td>
-                    <td>
-                      <span className="status-badge security-scheduled-time">{item.jamKeluar || '-'}</span>
-                    </td>
-                    <td>
-                      <span className="status-badge security-departure-time">{item.departureTime || '-'}</span>
-                    </td>
-                    <td className="text-right">
-                      {item.status === 'AKAN_TUGAS_LUAR' && item.jenisTugas !== 'GROUP' ? <button
-                        type="button"
-                        onClick={() => { setDepartureTime(new Date().toTimeString().slice(0, 5)); setDepartureId(item); }}
-                        className="primary-button security-depart-button !min-h-[32px] !py-1 !text-xs"
-                      >
-                        Catat Berangkat
-                      </button> : item.status === 'SEDANG_TUGAS_LUAR' && item.jenisTugas !== 'GROUP' ? <button type="button" onClick={() => { setReturnTime(new Date().toTimeString().slice(0, 5)); setConfirmId({ id: item.id, nip: item.nip, nama: item.nama }); }} className="primary-button !min-h-[32px] !py-1 !text-xs !bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700">Catat Kembali</button> : <span className="text-xs text-gray-500">{item.jenisTugas === 'GROUP' ? 'Group' : '-'}</span>}
-                    </td>
+          <>
+            <div className="security-travel-desktop companies-table-wrap security-travel-table-wrap">
+              <table className="companies-table security-travel-table">
+                <thead>
+                  <tr>
+                    <th rowSpan={2} style={{ width: '14%' }}>Status</th>
+                    <th rowSpan={2} style={{ width: '22%' }}>Karyawan / Group</th>
+                    <th rowSpan={2} style={{ width: '21%' }}>Tujuan & Keperluan</th>
+                    <th rowSpan={2} style={{ width: '14%' }}>Kendaraan</th>
+                    <th colSpan={2} className="text-center security-travel-departure-heading">Jam Berangkat</th>
+                    <th rowSpan={2} className="text-right" style={{ width: '16%' }}>Aksi</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  <tr>
+                    <th className="security-travel-time-heading" style={{ width: '10%' }}>Jam Surat</th>
+                    <th className="security-travel-time-heading" style={{ width: '10%' }}>Jam Aktual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item.id}>
+                      <td><span className={`status-badge ${item.status === 'SEDANG_TUGAS_LUAR' ? 'security-travel-time' : 'security-permit-type'}`}>{item.status === 'SEDANG_TUGAS_LUAR' ? 'Sedang Tugas Luar' : 'Akan Tugas Luar'}</span></td>
+                      <td>
+                        <strong className="company-name">{item.jenisTugas === 'GROUP' ? item.groupCode : item.nama}</strong>
+                        {item.jenisTugas === 'GROUP' ? <>
+                          <span className="text-xs text-gray-500">{item.members?.map((member) => `${member.nama} (${member.nip})`).join(', ')}</span>
+                          {item.qrToken && <span className="text-xs text-gray-500 font-mono">QR: {item.qrToken}</span>}
+                        </> : <span className="text-xs text-gray-500 font-mono">NIP: {item.nip}</span>}
+                      </td>
+                      <td><div className="table-primary-text">{item.tujuan}</div><div className="text-xs text-gray-500">{item.keperluan}</div></td>
+                      <td><div className="text-xs">{item.kendaraan || '-'}</div><div className="text-xs text-gray-500">{item.platNomor || '-'}</div>{item.pengemudi && <div className="text-xs text-gray-500">Driver: {item.pengemudi}</div>}</td>
+                      <td><span className="status-badge security-scheduled-time">{item.jamKeluar || '-'}</span></td>
+                      <td><span className="status-badge security-departure-time">{item.departureTime || '-'}</span></td>
+                      <td className="text-right">{travelAction(item)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="security-travel-mobile">
+              {items.map((item) => (
+                <article className="security-travel-card" key={item.id}>
+                  <div className="security-travel-card-header">
+                    <div>
+                      <span className="security-travel-kicker">{item.jenisTugas === 'GROUP' ? 'Tugas luar group' : 'Tugas luar mandiri'}</span>
+                      <h2>{item.jenisTugas === 'GROUP' ? item.groupCode : item.nama}</h2>
+                    </div>
+                    <span className={`status-badge ${item.status === 'SEDANG_TUGAS_LUAR' ? 'security-travel-time' : 'security-permit-type'}`}>{item.status === 'SEDANG_TUGAS_LUAR' ? 'Sedang' : 'Terjadwal'}</span>
+                  </div>
+                  <div className="security-travel-card-body">
+                    <div className="security-travel-card-section">
+                      <span className="security-travel-label">Anggota / NIP</span>
+                      <p>{item.jenisTugas === 'GROUP' ? item.members?.map((member) => `${member.nama} (${member.nip})`).join(', ') : item.nip}</p>
+                    </div>
+                    <div className="security-travel-card-section">
+                      <span className="security-travel-label">Tujuan</span>
+                      <p>{item.tujuan || '-'}</p>
+                      <small>{item.keperluan || '-'}</small>
+                    </div>
+                    <div className="security-travel-card-grid">
+                      <div><span className="security-travel-label">Jam surat</span><strong>{item.jamKeluar || '-'}</strong></div>
+                      <div><span className="security-travel-label">Jam aktual</span><strong>{item.departureTime || '-'}</strong></div>
+                      <div><span className="security-travel-label">Kendaraan</span><strong>{item.kendaraan || '-'}</strong><small>{item.platNomor || '-'}</small></div>
+                      <div><span className="security-travel-label">Pengemudi</span><strong>{item.pengemudi || '-'}</strong></div>
+                    </div>
+                    {item.qrToken && <div className="security-travel-qr"><span className="security-travel-label">QR group</span><code>{item.qrToken}</code></div>}
+                  </div>
+                  <div className="security-travel-card-action">{travelAction(item)}</div>
+                </article>
+              ))}
+            </div>
+          </>
         )
       ) : (
         <div className="space-y-4">
