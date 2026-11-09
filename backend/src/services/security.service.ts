@@ -43,7 +43,7 @@ export function mapTravel(row: Record<string, unknown>) {
   };
 }
 
-export function mapGroupTravelRows(rows: Record<string, unknown>[]) {
+export function mapGroupTravelRows(rows: Record<string, unknown>[], includeReturned = false) {
   const latestVersions = new Map<string, number>();
   for (const row of rows) {
     const groupCode = trim(field(row, 'GroupCode'));
@@ -77,7 +77,7 @@ export function mapGroupTravelRows(rows: Record<string, unknown>[]) {
     const groupCode = trim(field(row, 'GroupCode'));
     const memberNip = trim(field(row, 'MemberNIP'));
     const memberStatus = trim(field(row, 'MemberStatus'));
-    if (!groupCode || !memberNip || memberStatus !== 'ACTIVE' || field(row, 'ReturnedDate') != null) continue;
+    if (!groupCode || !memberNip || memberStatus !== 'ACTIVE' || (!includeReturned && field(row, 'ReturnedDate') != null)) continue;
 
     const versionNo = Number(field(row, 'VersionNo'));
     if (latestVersions.get(groupCode) !== versionNo) continue;
@@ -116,6 +116,19 @@ export function mapGroupTravelRows(rows: Record<string, unknown>[]) {
   }
 
   return [...groups.values()];
+}
+
+export function groupTravelReportDate(row: Record<string, unknown>) {
+  return field(row, 'ReturnedDate');
+}
+
+export function mapGroupTravelReportRows(rows: Record<string, unknown>[]) {
+  return mapGroupTravelRows(rows, true).map((row) => ({
+    ...row,
+    tanggal: rows.find((item) => trim(field(item, 'GroupCode')) === row.groupCode)?.['ExitDate'],
+    jamKeluar: row.jamKeluar,
+    jamKembali: formatTime(rows.find((item) => trim(field(item, 'GroupCode')) === row.groupCode)?.['ReturnedTime']),
+  }));
 }
 
 function mapIzin(row: Record<string, unknown>) {
@@ -352,7 +365,38 @@ export async function getReport(type: SecurityReportType, start: string, end: st
       WHERE t.IsActive=1 AND CONVERT(date, t.StartDate) BETWEEN @start AND @end
       ORDER BY t.StartDate DESC, t.StartTime DESC
     `);
-    return { rows: result.recordset.map((row) => ({ ...mapTravel(row), tanggal: row.Tanggal, jamKeluar: formatTime(row.JamKeluar), departureTime: formatTime(row.DepartureTime) })) };
+    const groupResult = await request.query(`
+      WITH LatestVersion AS (
+        SELECT v.*, ROW_NUMBER() OVER (PARTITION BY v.GroupCode ORDER BY v.VersionNo DESC) AS rn
+        FROM hris_Travel_Group_Version v
+      )
+      SELECT g.GroupCode, g.Status AS GroupStatus, v.VersionNo, v.ExitDate, v.ExitTime,
+             v.Tujuan, v.Tugas, v.VehicleType, v.VehiclePlate, v.Status AS VersionStatus,
+             v.QrToken, v.DepartureAt, cp.DepartureTime AS GroupCheckpointDepartureTime,
+             cp.ReturnedDate, cp.ReturnedTime, v.DriverNIP, v.DriverName,
+             m.NIP AS MemberNIP, e.Name AS MemberName, m.Status AS MemberStatus,
+             COALESCE((SELECT MAX(a.StatusId) FROM hris_Travel_Group_Approval a
+               WHERE a.GroupCode = v.GroupCode AND a.VersionNo = v.VersionNo
+                 AND UPPER(a.ApprovalType) IN ('VEHICLE', 'KENDARAAN')), 0) AS VehicleApprovalStatus
+      FROM hris_Travel_Group g
+      INNER JOIN LatestVersion v ON v.GroupCode = g.GroupCode AND v.rn = 1
+      INNER JOIN hris_Travel_Group_Member m ON m.GroupCode = v.GroupCode AND m.VersionNo = v.VersionNo
+        AND m.Status = 'ACTIVE'
+      LEFT JOIN hris_Employee e ON e.NIP = m.NIP
+      OUTER APPLY (SELECT TOP 1 c.DepartureTime, c.ReturnedDate, c.ReturnedTime
+        FROM vms.SecurityTravelCheckpoints c
+        WHERE c.TravelId = g.GroupCode ORDER BY c.Id DESC) cp
+      WHERE g.Status <> 'CANCELLED' AND v.Status <> 'CANCELLED'
+        AND cp.ReturnedDate IS NOT NULL
+        AND CONVERT(date, cp.ReturnedDate) BETWEEN @start AND @end
+      ORDER BY cp.ReturnedDate DESC, cp.ReturnedTime DESC, g.GroupCode, m.NIP
+    `);
+    return {
+      rows: [
+        ...result.recordset.map((row) => ({ ...mapTravel(row), tanggal: row.Tanggal, jamKeluar: formatTime(row.JamKeluar), departureTime: formatTime(row.DepartureTime) })),
+        ...mapGroupTravelReportRows(groupResult.recordset),
+      ],
+    };
   }
   if (type === 'izin') {
     const result = await request.query(`

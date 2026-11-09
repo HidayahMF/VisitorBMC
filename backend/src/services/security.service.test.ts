@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapGroupTravelRows, mapTravel } from './security.service';
+import { groupTravelReportDate, mapGroupTravelReportRows, mapGroupTravelRows, mapTravel } from './security.service';
 
 describe('security travel flow', () => {
   it('memetakan tugas luar mandiri tanpa mengubah format existing', () => {
@@ -28,6 +28,32 @@ describe('security travel flow', () => {
     expect(mapGroupTravelRows([
       { GroupCode: 'DONE-01', VersionNo: 1, ExitDate: '2026-11-09', ExitTime: '08:00', DepartureAt: '2026-11-09T08:10:00', ReturnedDate: '2026-11-09', MemberNIP: '1001', MemberName: 'Andi', MemberStatus: 'ACTIVE' },
     ])).toEqual([]);
+  });
+
+  it('memakai tanggal kepulangan checkpoint untuk filter laporan group', () => {
+    expect(groupTravelReportDate({ ExitDate: '2026-11-08', ReturnedDate: '2026-11-09' })).toBe('2026-11-09');
+  });
+
+  it('memetakan group yang sudah kembali sebagai satu row laporan', () => {
+    const rows = mapGroupTravelReportRows([
+      { GroupCode: 'DONE-01', VersionNo: 2, ExitDate: '2026-11-09', ExitTime: '08:00', Tujuan: 'Gudang', Tugas: 'Kirim', DepartureAt: '2026-11-09T08:10:00', GroupCheckpointDepartureTime: '08:10', ReturnedDate: '2026-11-09', ReturnedTime: '16:30', MemberNIP: '1001', MemberName: 'Andi', MemberStatus: 'ACTIVE' },
+      { GroupCode: 'DONE-01', VersionNo: 2, ExitDate: '2026-11-09', ExitTime: '08:00', Tujuan: 'Gudang', Tugas: 'Kirim', ReturnedDate: '2026-11-09', ReturnedTime: '16:30', MemberNIP: '1002', MemberName: 'Budi', MemberStatus: 'ACTIVE' },
+    ]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      id: 'DONE-01',
+      groupCode: 'DONE-01',
+      nip: '1001, 1002',
+      nama: 'Andi, Budi',
+      tanggal: '2026-11-09',
+      jamKeluar: '08:00',
+      departureTime: '08:10',
+      jamKembali: '16:30',
+      tujuan: 'Gudang',
+      keperluan: 'Kirim',
+      jenisTugas: 'GROUP',
+    });
   });
 
   it('memetakan group dari versi terbaru dan hanya member aktif tanpa duplikasi', () => {
